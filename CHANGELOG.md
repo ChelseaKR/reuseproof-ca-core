@@ -34,6 +34,10 @@ No version has been tagged yet.
   exact source and row hashes, fatal UTF-8 and bounded CSV parsing, exact
   headers, stable row locators and reconciled accepted/duplicate/quarantine
   outcomes (ADR-0005).
+- Iteration 6: governed CSV measurement normalization — authorized transport
+  field mappings, exact source rerouting, deterministic observation identities,
+  typed timestamp/range/unit/value quarantines and direct exact-decimal
+  preimages for the coverage and aggregation engines (ADR-0006).
 - Standards-conformance sweep (2026-07-16): CodeQL, TruffleHog and Dependabot
   scanning, tag-triggered release workflow, SECURITY.md, CONTRIBUTING.md,
   CITATION.cff, LICENSE (Apache-2.0), pre-commit config, ADR seed record and
