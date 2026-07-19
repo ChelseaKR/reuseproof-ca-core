@@ -42,6 +42,6 @@ jobs:
       - uses: github/codeql-action/init@f09c1c0a94de965c15400f5634aa42fac8fb8f88 # v3.28.19
         with:
           languages: ${{ matrix.language }}
-      - uses: github/codeql-action/analyze@f09c1c0a94de965c15400f5634aa42fac8fb8f88 # v3.28.19
+      - uses: github/codeql-action/analyze@7188fc363630916deb702c7fdcf4e481b751f97a # v3.28.19
         with:
           category: '/language:${{ matrix.language }}'
