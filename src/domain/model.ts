@@ -54,7 +54,11 @@ export interface VendorMapping {
 }
 
 export type QuarantineReason =
-  'ambiguous_timestamp' | 'impossible_unit' | 'malformed_value' | 'unmapped_value';
+  | 'ambiguous_timestamp'
+  | 'conflicting_duplicate'
+  | 'impossible_unit'
+  | 'malformed_value'
+  | 'unmapped_value';
 
 interface ObservationBase {
   readonly observationId: string;
@@ -330,6 +334,7 @@ export function createObservation(value: unknown): Observation {
   const hasSupersededBy = Object.hasOwn(record, 'supersededBy');
   const quarantineReasons: readonly QuarantineReason[] = [
     'ambiguous_timestamp',
+    'conflicting_duplicate',
     'impossible_unit',
     'malformed_value',
     'unmapped_value',

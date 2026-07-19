@@ -4,6 +4,7 @@ export * from './domain/canonical.js';
 export * from './domain/coverage.js';
 export * from './domain/csv-ingestion.js';
 export * from './domain/csv-normalization.js';
+export * from './domain/csv-reconciliation.js';
 export * from './domain/json.js';
 export * from './domain/lifecycle.js';
 export * from './domain/model.js';

@@ -38,6 +38,10 @@ No version has been tagged yet.
   field mappings, exact source rerouting, deterministic observation identities,
   typed timestamp/range/unit/value quarantines and direct exact-decimal
   preimages for the coverage and aggregation engines (ADR-0006).
+- Iteration 7: deterministic cross-source CSV reconciliation — exact-source
+  resubmission accounting, byte-distinct semantic replay collapse and explicit
+  `conflicting_duplicate` quarantine with no arbitrary accepted winner
+  (ADR-0007).
 - Standards-conformance sweep (2026-07-16): CodeQL, TruffleHog and Dependabot
   scanning, tag-triggered release workflow, SECURITY.md, CONTRIBUTING.md,
   CITATION.cff, LICENSE (Apache-2.0), pre-commit config, ADR seed record and
