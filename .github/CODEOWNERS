@@ -1,0 +1,11 @@
+# Default ownership and explicit review routing for merge-critical paths.
+* @ChelseaKR
+
+/.github/workflows/ @ChelseaKR
+/.github/CODEOWNERS @ChelseaKR
+/DEFINITION_OF_DONE.md @ChelseaKR
+/Makefile @ChelseaKR
+/package.json @ChelseaKR
+/package-lock.json @ChelseaKR
+/src/domain/ @ChelseaKR
+/src/fixture.ts @ChelseaKR

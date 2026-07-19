@@ -1,0 +1,51 @@
+# Release pipeline. Fires on a vX.Y.Z tag and re-runs the literal `make verify`
+# at the tagged commit — format-check, lint, typecheck, test/coverage, build,
+# npm audit and marker hygiene, the exact same target a contributor runs
+# locally — so a release can never ship a commit that didn't pass its own gate.
+# It also refuses to release a tag whose CHANGELOG has no matching section.
+# There is no publish step yet: the package is `private: true` and nothing is
+# distributed; a stub publish job that always passed would be a false-green gate.
+name: release
+
+on:
+  push:
+    tags: ['v*.*.*']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  verify-at-tag:
+    name: re-verify at tagged commit (make verify)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+        with:
+          egress-policy: audit
+          disable-telemetry: true
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - name: Set up Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - name: CHANGELOG carries a section for this tag
+        # A release must not tag a commit whose CHANGELOG has no matching
+        # `## [X.Y.Z]` section. GITHUB_REF_NAME is the runner-provided env var
+        # (no `${{ }}` interpolation — template-injection-safe).
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          grep -Fq "## [${VERSION}]" CHANGELOG.md || {
+            echo "CHANGELOG.md has no '## [${VERSION}]' section for tag ${GITHUB_REF_NAME}" >&2
+            exit 1
+          }
+      - name: Run the repository merge gate
+        run: make verify

@@ -1,0 +1,47 @@
+# CodeQL SAST. Analyzes the TypeScript sources and the workflow YAML itself
+# (via the `actions` language pack).
+#
+# Trigger posture: scan every main update and weekly even during quiet periods.
+# Manual dispatch remains available for incident response and verification.
+name: codeql
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: '37 9 * * 2'
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: codeql-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  analyze:
+    name: analyze (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [javascript-typescript, actions]
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+        with:
+          egress-policy: audit
+          disable-telemetry: true
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: github/codeql-action/init@f09c1c0a94de965c15400f5634aa42fac8fb8f88 # v3.28.19
+        with:
+          languages: ${{ matrix.language }}
+      - uses: github/codeql-action/analyze@f09c1c0a94de965c15400f5634aa42fac8fb8f88 # v3.28.19
+        with:
+          category: '/language:${{ matrix.language }}'
