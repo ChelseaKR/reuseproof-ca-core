@@ -1,0 +1,38 @@
+# Scheduled full-history verified-secret scan. gitleaks runs at commit time via
+# .pre-commit-config.yaml; this is the periodic sweep of the *entire* commit
+# history with a different engine and its own detector set, catching anything a
+# diff-scoped scan by construction cannot (a secret introduced and later removed
+# in the same PR still shows up in history).
+name: trufflehog
+
+on:
+  schedule:
+    - cron: '0 8 * * 0' # weekly, Sunday, staggered off ci.yml/codeql.yml's crons
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: trufflehog-scheduled
+  cancel-in-progress: true
+
+jobs:
+  scan:
+    name: full-history secret scan (verified only)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: audit
+          disable-telemetry: true
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0 # full clone — this is a whole-history scan, not a diff
+          persist-credentials: false
+      - name: TruffleHog (verified secrets only)
+        uses: trufflesecurity/trufflehog@27b0417c16317ca9a472a9a8092acce143b49c55 # v3.95.9
+        with:
+          path: ./
+          extra_args: --only-verified --fail

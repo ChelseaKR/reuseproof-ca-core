@@ -1,0 +1,169 @@
+{
+  "tenantId": "jurisdiction-demo",
+  "systemId": "system-demo-01",
+  "civilReportRange": {
+    "timeZone": "America/Los_Angeles",
+    "start": {
+      "localDateTime": "2026-01-01T00:00:00.000",
+      "disambiguation": "reject"
+    },
+    "end": {
+      "localDateTime": "2026-01-01T01:00:00.000",
+      "disambiguation": "reject"
+    }
+  },
+  "lifecycleTimeline": {
+    "schemaVersion": "lifecycle-timeline/v1",
+    "version": "synthetic-v1",
+    "tenantId": "jurisdiction-demo",
+    "systemId": "system-demo-01",
+    "periods": [
+      {
+        "lifecycleEventId": "lifecycle-event-demo-01",
+        "state": "in_service",
+        "effectiveRange": {
+          "start": "2026-01-01T08:00:00.000Z",
+          "end": "2026-12-31T08:00:00.000Z"
+        },
+        "evidenceId": "synthetic-lifecycle-evidence-01",
+        "recordedAt": "2025-12-15T20:00:00.000Z"
+      }
+    ]
+  },
+  "contracts": [
+    {
+      "schemaVersion": "required-series-contract/v1",
+      "contractId": "rsc-flow-001",
+      "version": "1",
+      "tenantId": "jurisdiction-demo",
+      "systemId": "system-demo-01",
+      "processCode": "treatment_system",
+      "parameterCode": "flow.treated.daily_avg",
+      "statistic": "interval_observation",
+      "canonicalUnit": "gal/day",
+      "activationBasis": {
+        "permitVersionId": "permit-v1",
+        "profileVersionId": "profile-v1",
+        "lifecycleApprovalId": "lifecycle-v1",
+        "treatmentBasisId": "train-v1"
+      },
+      "eligibleLifecycleStates": ["in_service"],
+      "effectiveRange": {
+        "start": "2026-01-01T08:00:00.000Z",
+        "end": "2026-12-31T08:00:00.000Z"
+      },
+      "cadenceMinutes": 15,
+      "timezone": "America/Los_Angeles",
+      "criticality": "report_critical",
+      "aggregateMembership": ["annual-flow-total"]
+    },
+    {
+      "schemaVersion": "required-series-contract/v1",
+      "contractId": "rsc-volume-001",
+      "version": "1",
+      "tenantId": "jurisdiction-demo",
+      "systemId": "system-demo-01",
+      "processCode": "system",
+      "parameterCode": "volume.produced.daily",
+      "statistic": "interval_observation",
+      "canonicalUnit": "gal",
+      "activationBasis": {
+        "permitVersionId": "permit-v1",
+        "profileVersionId": "profile-v1",
+        "lifecycleApprovalId": "lifecycle-v1",
+        "treatmentBasisId": "train-v1"
+      },
+      "eligibleLifecycleStates": ["in_service"],
+      "effectiveRange": {
+        "start": "2026-01-01T08:00:00.000Z",
+        "end": "2026-12-31T08:00:00.000Z"
+      },
+      "cadenceMinutes": 30,
+      "timezone": "America/Los_Angeles",
+      "criticality": "required",
+      "aggregateMembership": ["annual-volume-total"]
+    }
+  ],
+  "mappings": [
+    {
+      "schemaVersion": "vendor-mapping/v1",
+      "mappingId": "mapping-demo-v1",
+      "version": "1",
+      "contractId": "rsc-flow-001",
+      "vendorField": "treated_flow_gpd",
+      "sourceUnit": "gal/day"
+    }
+  ],
+  "observations": [
+    {
+      "observationId": "flow-001",
+      "contractId": "rsc-flow-001",
+      "observedAt": "2026-01-01T08:00:00.000Z",
+      "sourceFingerprint": "source-a-row-1",
+      "qualityState": "accepted"
+    },
+    {
+      "observationId": "flow-002",
+      "contractId": "rsc-flow-001",
+      "observedAt": "2026-01-01T08:15:00.000Z",
+      "sourceFingerprint": "source-a-row-2",
+      "qualityState": "accepted"
+    },
+    {
+      "observationId": "flow-002-replay",
+      "contractId": "rsc-flow-001",
+      "observedAt": "2026-01-01T08:15:00.000Z",
+      "sourceFingerprint": "source-a-row-2",
+      "qualityState": "accepted"
+    },
+    {
+      "observationId": "flow-003-during-approved-stop",
+      "contractId": "rsc-flow-001",
+      "observedAt": "2026-01-01T08:30:00.000Z",
+      "sourceFingerprint": "source-a-row-3",
+      "qualityState": "accepted"
+    },
+    {
+      "observationId": "flow-004-quarantined",
+      "contractId": "rsc-flow-001",
+      "observedAt": "2026-01-01T08:45:00.000Z",
+      "sourceFingerprint": "source-a-row-4",
+      "qualityState": "quarantined",
+      "quarantineReason": "impossible_unit"
+    },
+    {
+      "observationId": "volume-001",
+      "contractId": "rsc-volume-001",
+      "observedAt": "2026-01-01T08:00:00.000Z",
+      "sourceFingerprint": "source-b-row-1",
+      "qualityState": "accepted"
+    }
+  ],
+  "scheduledNonoperations": [
+    {
+      "nonoperationId": "scheduled-stop-001",
+      "contractId": "rsc-flow-001",
+      "range": {
+        "start": "2026-01-01T08:30:00.000Z",
+        "end": "2026-01-01T08:45:00.000Z"
+      },
+      "authorizedAt": "2025-12-31T20:00:00.000Z",
+      "evidenceId": "evidence-stop-001"
+    }
+  ],
+  "sourceHashes": [
+    {
+      "logicalName": "vendor-a.csv",
+      "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    {
+      "logicalName": "vendor-b.csv",
+      "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    }
+  ],
+  "pinnedVersions": [
+    { "name": "adapter", "value": "synthetic-v1" },
+    { "name": "algorithm", "value": "coverage-v1" },
+    { "name": "profile", "value": "profile-v1" }
+  ]
+}

@@ -1,0 +1,25 @@
+cff-version: 1.2.0
+message: 'If you use ReuseProof CA, please cite it as below.'
+title: 'ReuseProof CA Core — deterministic evidence-domain foundation for California OTNWS programs'
+abstract: >-
+  An initially read-only, hardware-neutral regulatory evidence and
+  program-operations control plane for California local jurisdictions that
+  elect to operate onsite treated nonpotable water system (OTNWS) programs.
+  The current shipped slice is a headless TypeScript domain foundation:
+  deterministic required-series coverage evaluation, readiness preflight and
+  frozen report artifacts with hash-derived receipts.
+type: software
+authors:
+  - given-names: Chelsea
+    family-names: Kelly-Reif
+license: Apache-2.0
+repository-code: 'https://github.com/ChelseaKR/reuseproof-ca-core'
+url: 'https://github.com/ChelseaKR/reuseproof-ca-core'
+keywords:
+  - california
+  - water-reuse
+  - otnws
+  - regulatory-evidence
+  - civic-tech
+  - typescript
+date-released: 2026-07-19
