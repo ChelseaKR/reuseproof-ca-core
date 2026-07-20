@@ -4,6 +4,18 @@ ReuseProof CA Core is the open-source, deterministic evidence-domain foundation 
 
 It helps a jurisdiction and each permitted system assemble traceable permit, commissioning, monitoring, incident, inspection, cross-connection, and reporting evidence. It does **not** operate treatment equipment or decide that a system or jurisdiction is legally compliant.
 
+## Quickstart
+
+Run the synthetic local slice (everything is local; no credentials, no network writes):
+
+```sh
+npm ci          # install pinned dependencies
+make verify     # format check + lint + typecheck + tests with coverage + build + audit + hygiene (CI parity)
+npm run demo    # synthetic end-to-end fixture: bounded parse → contract/mapping bind → coverage → render/receipt → frozen draft
+```
+
+What the demo exercises — and the deliberate limits of the local slice — are described under [Implementation status](#implementation-status).
+
 ## Exact V1 definition
 
 V1 is a multi-tenant web application and API that:
