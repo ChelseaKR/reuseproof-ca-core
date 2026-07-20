@@ -1,8 +1,8 @@
 # Public roadmap
 
 ReuseProof CA Core is the open-source deterministic evidence-domain layer. It
-does not contain customer data, jurisdiction-specific configurations,
-deployment infrastructure, implementation schedules or commercial plans.
+does not contain real jurisdiction data, jurisdiction-specific configurations,
+or deployment infrastructure.
 
 ## Current priorities
 

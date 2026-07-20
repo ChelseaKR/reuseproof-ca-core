@@ -31,7 +31,7 @@ V1 is a multi-tenant web application and API that:
 9. issues a deterministic unsigned receipt core with a hash-derived ID and separate human verification envelope—never a signature, certificate or self-hashing artifact; and
 10. provides private jurisdiction/system views and an explicitly approved, aggregate public view that excludes critical-infrastructure metadata.
 
-The public repository currently ships only the synthetic, headless domain foundation described below. Hosted deployment, jurisdiction-specific configurations, real-data integrations, implementation schedules, customer work and commercial planning are outside this repository.
+The public repository currently ships only the synthetic, headless domain foundation described below. Hosted deployment, jurisdiction-specific configurations, and real-data integrations are out of scope for this repository.
 
 ## Regulatory anchor and important distinction
 
