@@ -10,6 +10,9 @@ No version has been tagged yet.
 
 ### Added
 
+- Signed-tag release-candidate authorization that proves stable SemVer,
+  protected-main ancestry, and the exact current main commit before the private
+  package's verification workflow receives execution authority.
 - Public product, architecture, evidence, safety, accessibility, testing and
   operations documentation plus ADR-0001 fixing the read-only local-program
   evidence-plane boundary.
