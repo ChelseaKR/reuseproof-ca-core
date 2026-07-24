@@ -36,7 +36,7 @@ jobs:
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version-file: .nvmrc
-          cache: npm
+          package-manager-cache: false
       - name: CHANGELOG carries a section for this tag
         # A release must not tag a commit whose CHANGELOG has no matching
         # `## [X.Y.Z]` section. GITHUB_REF_NAME is the runner-provided env var
