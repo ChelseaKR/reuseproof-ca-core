@@ -283,6 +283,7 @@ const duplicateReasons = [
 ] as const;
 const quarantineReasons = [
   'ambiguous_timestamp',
+  'conflicting_duplicate',
   'impossible_unit',
   'malformed_value',
   'unmapped_value',

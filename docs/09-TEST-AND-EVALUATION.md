@@ -121,6 +121,28 @@ Fixtures contain no live credentials or unapproved infrastructure details.
 - source hash mismatch halts;
 - frozen report never follows “latest.”
 
+### Reconciled evidence composition
+
+- the independent required-contract set contains one to 64 unique, same-scope contracts and has exactly one matching series bundle per contract ID/version, independent of bundle and contract order;
+- each bundle accepts zero to 64 exact byte sources while the whole evaluation rejects more than 64 submitted sources or 64 MiB of source bytes; intrinsic typed-array length and copying ignore caller-shadowed properties and iterators, and shared or resizable backing storage is rejected;
+- source-independent governance reconstruction binds the required contract, CSV contract, mapping and conversion rules before either the `reconciled` or `no_source_objects` path;
+- contract, bundle and source reordering reproduces the complete result, while globally repeated source objects appear once in receipt source provenance;
+- an exact delivery retry changes submitted-source accounting, `operationalHash` and the root `evaluationHash`, but preserves `evidenceSetHash`, coverage, aggregate, receipt ID and frozen-draft ID;
+- a `no_source_objects` bundle retains governance, produces explicit applicable gaps and an aggregate with empty `values`, and cannot remove the required contract from readiness;
+- reconciliation observations are the only coverage inputs, and only numeric preimages whose observation IDs win coverage enter exact daily aggregation; conflicts, duplicates, scheduled nonoperation and lifecycle exclusion cannot contribute a fallback value;
+- caller-provided source hashes, pins or other derived provenance are rejected by the strict outer schema.
+
+### Reconciled result integrity replay
+
+- pristine results and canonically equivalent contract/bundle/source orderings return a newly evaluated, deeply frozen result;
+- `reconciled` and `no_source_objects` union arms are validated against the exact replay branch;
+- byte-identical delivery retry accounting must pair with the input that produced it even when evidence-set, receipt and frozen-draft identities are unchanged;
+- changed source bytes, governance, report-time basis, lifecycle basis or scheduled nonoperation cannot validate a previously produced result;
+- governance, source accounting, reconciliation outcomes, coverage, numeric aggregates, readiness, receipt, frozen draft and root evaluation identity must all exactly match replay;
+- coordinated field and replacement-hash tampering is rejected rather than treated as authoritative;
+- every result record and array is strictly reconstructed, rejecting missing/extra/symbol/accessor/custom-prototype fields, decorated or sparse arrays, stateful length-spoofing proxies and accessors without invoking them; and
+- validation returns the canonical replay rather than the caller's object and makes no authenticity or regulatory claim.
+
 ### Required-series coverage
 
 - expected intervals exactly tile the half-open intersection of report/effective ranges at approved cadence, including 23/25-hour DST days;
@@ -227,9 +249,14 @@ Pass thresholds are independent and non-waivable: 100% deterministic routing/acc
 - gaps/quarantines included;
 - human attestations, audit references and runtime creation time live only in a separate verification envelope associated after rendering;
 - identical pinned inputs reproduce content/render/core hashes and ID byte-for-byte while two valid human envelopes may differ;
+- exact source-delivery retries preserve the Iteration 8 receipt and frozen-draft IDs because operational multiplicity is bound by the outer evaluation hash rather than the receipt;
 - reproduction after backup restore; receipt text remains “evidence assembled” and explicitly unsigned/not a certificate.
 
 The iteration-3 automated foundation exercises the synthetic subset above, including content/render/core separation, all three exact render hashes, renderer rejection of a well-formed but mismatched content hash, sorted manifests, actual-prior same-scope sequential version chains, frozen-subject-bound envelopes and same-receipt cross-snapshot rejection, null retention, fixed-millisecond runtime-envelope times, hash-derived IDs, no back-link/self-hash, exact-key plain-data runtime schemas at every public wrapper and nested boundary, strict summary/accounting/threshold reconstruction after hostile rehashing, governing-contract-preimage derivation of parameter/unit/time-zone export metadata, normalized-evaluation-preimage recomputation, exact derivation of report-safe coverage aggregates, rejection of eligible gaps relabeled as lifecycle exclusions, one state/evidence binding per lifecycle-event ID and evidence-bound replay/extra/superseded duplicate reasons, marker-based proof that full interval/outcome summaries and evidence-routing identifiers never enter JSON/HTML/CSV, HTML escaping/semantics, CSV formula neutralization, safe output names, staged atomic output, forced stage/rename cleanup and aggregate preservation of simultaneous primary/cleanup failures. The 95% per-file safety-core threshold explicitly covers the domain, report-schema, renderer, lifecycle and local-output modules. It does not satisfy real-source reproduction, authenticated approval, browser/assistive-technology review, tagged PDF, backup restore or jurisdiction annual-draft UAT.
+
+The iteration-8 automated foundation composes the synthetic source bytes through governance, reconciliation, coverage, exact aggregation, receipt and freeze. Its tests cover the contract/bundle bijection, global source-count and byte bounds, intrinsic exact-byte snapshots, shared/resizable-buffer rejection, collision-safe provenance names, order invariance, source-less required series, retry-insensitive evidence identity, multiplicity-sensitive operational/root identity, byte-distinct semantic replay, conflict quarantine, crowded-interval winner selection, scheduled-nonoperation and lifecycle exclusion, derived receipt provenance, deterministic replay, strict input shape and deep immutability. It remains in-memory, fixed-millisecond-UTC and synthetic: no real vendor format, source/measurement store, concurrent-worker or durable-idempotency test, authenticated correction path, or numeric report-projection assertion is satisfied. BL-033, BL-038, BL-040, BL-042, BL-043, BL-047, BL-055 and BL-056 remain open.
+
+The iteration-9 automated foundation validates complete retained evaluation results by exact-input replay. Its tests cover both source-state union arms, canonical order equivalence, exact-retry pairing, changed authoritative inputs, tampering at every result layer, coordinated field-and-hash tampering, strict hostile record/array shapes, accessor non-invocation and canonical frozen return. It adds no persistence, authentication, correction workflow, report field or external verification; the same backlog items remain open at the external authority/storage/schema gate.
 
 ### Control-plane signature verification
 

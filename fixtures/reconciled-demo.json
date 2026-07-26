@@ -1,0 +1,236 @@
+{
+  "reportRange": {
+    "start": "2026-01-01T00:00:00.000Z",
+    "end": "2026-01-01T01:00:00.000Z"
+  },
+  "reportTimeBasis": { "kind": "utc" },
+  "lifecycleState": "in_service",
+  "contracts": [
+    {
+      "schemaVersion": "required-series-contract/v1",
+      "contractId": "rsc-flow-001",
+      "version": "1",
+      "tenantId": "jurisdiction-demo",
+      "systemId": "system-demo-01",
+      "processCode": "treatment_system",
+      "parameterCode": "flow.treated.daily_avg",
+      "statistic": "interval_observation",
+      "canonicalUnit": "gal/day",
+      "activationBasis": {
+        "permitVersionId": "permit-v1",
+        "profileVersionId": "profile-v1",
+        "lifecycleApprovalId": "lifecycle-v1",
+        "treatmentBasisId": "train-v1"
+      },
+      "eligibleLifecycleStates": ["in_service"],
+      "effectiveRange": {
+        "start": "2026-01-01T00:00:00.000Z",
+        "end": "2026-01-01T01:00:00.000Z"
+      },
+      "cadenceMinutes": 30,
+      "timezone": "UTC",
+      "criticality": "report_critical",
+      "aggregateMembership": ["annual-flow"]
+    },
+    {
+      "schemaVersion": "required-series-contract/v1",
+      "contractId": "rsc-residual-001",
+      "version": "1",
+      "tenantId": "jurisdiction-demo",
+      "systemId": "system-demo-01",
+      "processCode": "treatment_system",
+      "parameterCode": "residual.chlorine",
+      "statistic": "interval_observation",
+      "canonicalUnit": "mg/L",
+      "activationBasis": {
+        "permitVersionId": "permit-v1",
+        "profileVersionId": "profile-v1",
+        "lifecycleApprovalId": "lifecycle-v1",
+        "treatmentBasisId": "train-v1"
+      },
+      "eligibleLifecycleStates": ["in_service"],
+      "effectiveRange": {
+        "start": "2026-01-01T00:00:00.000Z",
+        "end": "2026-01-01T01:00:00.000Z"
+      },
+      "cadenceMinutes": 30,
+      "timezone": "UTC",
+      "criticality": "required",
+      "aggregateMembership": ["annual-residual"]
+    }
+  ],
+  "scheduledNonoperations": [],
+  "series": [
+    {
+      "requiredSeriesContractId": "rsc-flow-001",
+      "requiredSeriesContractVersion": "1",
+      "csvContract": {
+        "schemaVersion": "csv-adapter-source-contract/v1",
+        "contractId": "csv-flow-001",
+        "version": "1",
+        "adapterId": "synthetic-generic-csv",
+        "mappingVersionId": "flow-mapping-1",
+        "sourceSchemaVersion": "synthetic-v1",
+        "tenantId": "jurisdiction-demo",
+        "systemId": "system-demo-01",
+        "effectiveRange": {
+          "start": "2026-01-01T00:00:00.000Z",
+          "end": "2026-01-01T01:00:00.000Z"
+        },
+        "transport": {
+          "kind": "customer_pushed_csv",
+          "encoding": "utf-8",
+          "delimiter": ","
+        },
+        "columns": [
+          { "sourceName": "id", "requiredInSourceRow": true },
+          { "sourceName": "observed_at", "requiredInSourceRow": true },
+          { "sourceName": "value", "requiredInSourceRow": true },
+          { "sourceName": "unit", "requiredInSourceRow": true }
+        ],
+        "identityFields": ["id", "observed_at"],
+        "informationalDeliveryCadence": "synthetic half-hour export",
+        "approvals": {
+          "vendorOperatorReviewId": "synthetic-vendor-review-flow",
+          "jurisdictionMappingReviewId": "synthetic-mapping-review-flow",
+          "securityReviewId": "synthetic-security-review-flow"
+        },
+        "limits": {
+          "maxBytes": 10000,
+          "maxRecords": 100,
+          "maxFieldBytes": 100
+        }
+      },
+      "mapping": {
+        "schemaVersion": "csv-measurement-mapping/v1",
+        "mappingVersionId": "flow-mapping-1",
+        "csvContractId": "csv-flow-001",
+        "csvContractVersion": "1",
+        "requiredSeriesContractId": "rsc-flow-001",
+        "requiredSeriesContractVersion": "1",
+        "observedAtField": "observed_at",
+        "valueField": "value",
+        "unit": { "kind": "column", "field": "unit" },
+        "timestampFormat": "fixed_millisecond_utc",
+        "authorizationId": "synthetic-mapping-review-flow"
+      },
+      "conversionRules": [
+        {
+          "schemaVersion": "unit-conversion-rule/v1",
+          "ruleId": "flow-gpd-identity",
+          "version": "1",
+          "parameterCode": "flow.treated.daily_avg",
+          "sourceUnit": "gpd",
+          "canonicalUnit": "gal/day",
+          "sourceOffset": "0",
+          "multiplierNumerator": "1",
+          "multiplierDenominator": "1",
+          "effectiveRange": {
+            "start": "2025-01-01T00:00:00.000Z",
+            "end": "2027-01-01T00:00:00.000Z"
+          },
+          "authorizationId": "synthetic-unit-review-flow"
+        }
+      ],
+      "aggregatePolicy": {
+        "schemaVersion": "daily-aggregate-policy/v1",
+        "policyId": "flow-daily-mean",
+        "version": "1",
+        "contractId": "rsc-flow-001",
+        "method": "mean",
+        "decimalPlaces": 2,
+        "roundingMode": "half_away_from_zero",
+        "timeZone": "UTC",
+        "authorizationId": "synthetic-aggregate-review-flow"
+      },
+      "sourceObjectsUtf8": [
+        "id,observed_at,value,unit\nflow-1,2026-01-01T00:05:00.000Z,120,gpd\nflow-2,2026-01-01T00:35:00.000Z,180,gpd\n",
+        "id,observed_at,value,unit\nflow-1,2026-01-01T00:05:00.000Z,120,gpd\nflow-2,2026-01-01T00:35:00.000Z,180,gpd\n"
+      ]
+    },
+    {
+      "requiredSeriesContractId": "rsc-residual-001",
+      "requiredSeriesContractVersion": "1",
+      "csvContract": {
+        "schemaVersion": "csv-adapter-source-contract/v1",
+        "contractId": "csv-residual-001",
+        "version": "1",
+        "adapterId": "synthetic-generic-csv",
+        "mappingVersionId": "residual-mapping-1",
+        "sourceSchemaVersion": "synthetic-v1",
+        "tenantId": "jurisdiction-demo",
+        "systemId": "system-demo-01",
+        "effectiveRange": {
+          "start": "2026-01-01T00:00:00.000Z",
+          "end": "2026-01-01T01:00:00.000Z"
+        },
+        "transport": {
+          "kind": "customer_pushed_csv",
+          "encoding": "utf-8",
+          "delimiter": ","
+        },
+        "columns": [
+          { "sourceName": "id", "requiredInSourceRow": true },
+          { "sourceName": "observed_at", "requiredInSourceRow": true },
+          { "sourceName": "value", "requiredInSourceRow": true },
+          { "sourceName": "unit", "requiredInSourceRow": true }
+        ],
+        "identityFields": ["id", "observed_at"],
+        "informationalDeliveryCadence": "synthetic half-hour export",
+        "approvals": {
+          "vendorOperatorReviewId": "synthetic-vendor-review-residual",
+          "jurisdictionMappingReviewId": "synthetic-mapping-review-residual",
+          "securityReviewId": "synthetic-security-review-residual"
+        },
+        "limits": {
+          "maxBytes": 10000,
+          "maxRecords": 100,
+          "maxFieldBytes": 100
+        }
+      },
+      "mapping": {
+        "schemaVersion": "csv-measurement-mapping/v1",
+        "mappingVersionId": "residual-mapping-1",
+        "csvContractId": "csv-residual-001",
+        "csvContractVersion": "1",
+        "requiredSeriesContractId": "rsc-residual-001",
+        "requiredSeriesContractVersion": "1",
+        "observedAtField": "observed_at",
+        "valueField": "value",
+        "unit": { "kind": "column", "field": "unit" },
+        "timestampFormat": "fixed_millisecond_utc",
+        "authorizationId": "synthetic-mapping-review-residual"
+      },
+      "conversionRules": [
+        {
+          "schemaVersion": "unit-conversion-rule/v1",
+          "ruleId": "residual-mgl-identity",
+          "version": "1",
+          "parameterCode": "residual.chlorine",
+          "sourceUnit": "mg/L",
+          "canonicalUnit": "mg/L",
+          "sourceOffset": "0",
+          "multiplierNumerator": "1",
+          "multiplierDenominator": "1",
+          "effectiveRange": {
+            "start": "2025-01-01T00:00:00.000Z",
+            "end": "2027-01-01T00:00:00.000Z"
+          },
+          "authorizationId": "synthetic-unit-review-residual"
+        }
+      ],
+      "aggregatePolicy": {
+        "schemaVersion": "daily-aggregate-policy/v1",
+        "policyId": "residual-daily-mean",
+        "version": "1",
+        "contractId": "rsc-residual-001",
+        "method": "mean",
+        "decimalPlaces": 2,
+        "roundingMode": "half_away_from_zero",
+        "timeZone": "UTC",
+        "authorizationId": "synthetic-aggregate-review-residual"
+      },
+      "sourceObjectsUtf8": []
+    }
+  ]
+}
