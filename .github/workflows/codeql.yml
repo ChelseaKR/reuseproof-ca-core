@@ -1,11 +1,16 @@
 # CodeQL SAST. Analyzes the TypeScript sources and the workflow YAML itself
 # (via the `actions` language pack).
 #
-# Trigger posture: scan every main update and weekly even during quiet periods.
-# Manual dispatch remains available for incident response and verification.
+# Trigger posture: gate pull requests into main, scan every main update, and
+# sweep weekly even during quiet periods. Manual dispatch remains available for
+# incident response and verification — reach for it when you need a full-tree
+# scan, because the pull_request run is diff-informed and only reasons about the
+# code the PR touches.
 name: codeql
 
 on:
+  pull_request:
+    branches: [main]
   push:
     branches: [main]
   schedule:
