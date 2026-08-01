@@ -105,6 +105,37 @@ describe('gate verdicts', () => {
     expect(await runGate([dir])).toBe(0);
   });
 
+  // Regression test for the shape CodeQL actually emits. Real CodeQL SARIF leaves
+  // `tool.driver.rules` EMPTY, puts every query-pack rule under `tool.extensions[].rules`, and
+  // puts no `level` on results at all — severity lives only on the rule. A gate that resolves
+  // rules from the driver alone builds an empty table, classifies nothing, and reports
+  // "0 error-severity finding(s)" no matter what CodeQL found.
+  it('detects an error whose rule metadata lives in tool.extensions, not tool.driver', async () => {
+    await writeSarif(dir, 'results.sarif', {
+      runs: [
+        {
+          tool: {
+            driver: { name: 'CodeQL', rules: [] },
+            extensions: [
+              {
+                name: 'codeql/javascript-queries',
+                rules: [
+                  {
+                    id: 'js/sqli',
+                    defaultConfiguration: { level: 'error' },
+                    properties: { 'problem.severity': 'error' },
+                  },
+                ],
+              },
+            ],
+          },
+          results: [{ ruleId: 'js/sqli', message: { text: 'injection' } }],
+        },
+      ],
+    });
+    expect(await runGate([dir])).toBe(1);
+  });
+
   it('discovers SARIF nested below the given directory', async () => {
     const nested = join(dir, 'runs', 'lang');
     await mkdir(nested, { recursive: true });
