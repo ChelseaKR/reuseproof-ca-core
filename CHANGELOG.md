@@ -13,6 +13,12 @@ No version has been tagged yet.
 - Keep the tag-triggered release verification path cache-free so runtime
   artifacts cannot inherit mutable npm cache contents from a less-trusted run.
 
+### Changed
+
+- Delay newly published dependency versions before Dependabot proposes routine
+  updates: 30 days for npm majors, seven days for npm minors and GitHub
+  Actions, and three days for npm patches. Security updates remain immediate.
+
 ### Added
 
 - Public product, architecture, evidence, safety, accessibility, testing and
