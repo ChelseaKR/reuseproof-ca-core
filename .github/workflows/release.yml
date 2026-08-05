@@ -1,5 +1,6 @@
-# Release pipeline. Fires on a vX.Y.Z tag and re-runs the literal `make verify`
-# at the tagged commit — format-check, lint, typecheck, test/coverage, build,
+# Release-candidate pipeline. Selects an existing signed vX.Y.Z tag and re-runs
+# the literal `make verify` at its authorized main commit — format-check, lint,
+# typecheck, test/coverage, build,
 # npm audit and marker hygiene, the exact same target a contributor runs
 # locally — so a release can never ship a commit that didn't pass its own gate.
 # It also refuses to release a tag whose CHANGELOG has no matching section.
@@ -8,8 +9,12 @@
 name: release
 
 on:
-  push:
-    tags: ['v*.*.*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing signed stable SemVer tag (vX.Y.Z)'
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -19,8 +24,16 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  authorize:
+    uses: ChelseaKR/portfolio-standards/.github/workflows/release-authorize.yml@3692aa5270d673f91f8571b4fc0ce1c622bf67e5
+    permissions:
+      contents: read
+    with:
+      tag: ${{ inputs.tag }}
+
   verify-at-tag:
     name: re-verify at tagged commit (make verify)
+    needs: authorize
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -31,21 +44,24 @@ jobs:
           disable-telemetry: true
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: ${{ needs.authorize.outputs.release-commit }}
           persist-credentials: false
       - name: Set up Node.js
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version-file: .nvmrc
-          cache: npm
+          package-manager-cache: false
       - name: CHANGELOG carries a section for this tag
         # A release must not tag a commit whose CHANGELOG has no matching
         # `## [X.Y.Z]` section. GITHUB_REF_NAME is the runner-provided env var
         # (no `${{ }}` interpolation — template-injection-safe).
         run: |
-          VERSION="${GITHUB_REF_NAME#v}"
+          VERSION="${RELEASE_TAG#v}"
           grep -Fq "## [${VERSION}]" CHANGELOG.md || {
-            echo "CHANGELOG.md has no '## [${VERSION}]' section for tag ${GITHUB_REF_NAME}" >&2
+            echo "CHANGELOG.md has no '## [${VERSION}]' section for tag ${RELEASE_TAG}" >&2
             exit 1
           }
+        env:
+          RELEASE_TAG: ${{ needs.authorize.outputs.release-tag }}
       - name: Run the repository merge gate
         run: make verify

@@ -8,6 +8,11 @@ No version has been tagged yet.
 
 ## [Unreleased]
 
+### Security
+
+- Keep the tag-triggered release verification path cache-free so runtime
+  artifacts cannot inherit mutable npm cache contents from a less-trusted run.
+
 ### Changed
 
 - Delay newly published dependency versions before Dependabot proposes routine
@@ -16,6 +21,9 @@ No version has been tagged yet.
 
 ### Added
 
+- Signed-tag release-candidate authorization that proves stable SemVer,
+  protected-main ancestry, and the exact current main commit before the private
+  package's verification workflow receives execution authority.
 - An explicit internationalization applicability record that preserves the
   locale-independent evidence contract and blocks the first public web release
   on reviewed EN/ES catalogs and automated parity gates.
