@@ -12,6 +12,13 @@ No version has been tagged yet.
 
 - Keep the tag-triggered release verification path cache-free so runtime
   artifacts cannot inherit mutable npm cache contents from a less-trusted run.
+- Pin the transitive `postcss` build dependency (pulled in via `vite`/`vitest`)
+  to 8.5.25 via an `overrides` entry, closing GHSA-fxqj-rqcc-2cmp. `npm audit`
+  is gated on high severity only, so this moderate finding was already
+  invisible to CI green/red — it showed up solely as a GitHub Dependabot alert
+  on the default branch. `postcss` never processes untrusted CSS here (it is
+  build/test tooling only), so this closes a visible advisory rather than a
+  live exposure.
 
 ### Changed
 
