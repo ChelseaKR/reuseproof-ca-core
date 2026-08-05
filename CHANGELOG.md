@@ -8,6 +8,12 @@ No version has been tagged yet.
 
 ## [Unreleased]
 
+### Changed
+
+- Delay newly published dependency versions before Dependabot proposes routine
+  updates: 30 days for npm majors, seven days for npm minors and GitHub
+  Actions, and three days for npm patches. Security updates remain immediate.
+
 ### Added
 
 - An explicit internationalization applicability record that preserves the
