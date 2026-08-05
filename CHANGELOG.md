@@ -21,6 +21,9 @@ No version has been tagged yet.
 
 ### Added
 
+- Signed-tag release-candidate authorization that proves stable SemVer,
+  protected-main ancestry, and the exact current main commit before the private
+  package's verification workflow receives execution authority.
 - An explicit internationalization applicability record that preserves the
   locale-independent evidence contract and blocks the first public web release
   on reviewed EN/ES catalogs and automated parity gates.
