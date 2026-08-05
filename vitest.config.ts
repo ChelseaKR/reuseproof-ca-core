@@ -30,6 +30,12 @@ export default defineConfig({
           lines: 95,
           statements: 95,
         },
+        'src/reconciled-evaluation.ts': {
+          branches: 95,
+          functions: 95,
+          lines: 95,
+          statements: 95,
+        },
         'src/report-render.ts': {
           branches: 95,
           functions: 95,

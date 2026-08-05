@@ -59,7 +59,26 @@ No version has been tagged yet.
   resubmission accounting, byte-distinct semantic replay collapse and explicit
   `conflicting_duplicate` quarantine with no arbitrary accepted winner
   (ADR-0007).
+- Iteration 8: deterministic reconciled evidence evaluation — an independent
+  required-contract set with exactly one governed series bundle per contract,
+  bounded zero-source/reconciled operational states, retry-insensitive evidence
+  identity, coverage-winner-only exact daily aggregation and fully derived
+  provenance through the existing unsigned receipt and frozen draft
+  (ADR-0008).
+- Iteration 9: exact replay integrity validation — strict full-result
+  reconstruction from exact bytes and governance preimages, hostile-container
+  rejection, nested tamper detection and canonical frozen replay return
+  (ADR-0009).
 - Standards-conformance sweep (2026-07-16): CodeQL, TruffleHog and Dependabot
   scanning, tag-triggered release workflow, SECURITY.md, CONTRIBUTING.md,
   CITATION.cff, LICENSE (Apache-2.0), pre-commit config, ADR seed record and
   README conformance table.
+
+### Fixed
+
+- Reconciled `conflicting_duplicate` quarantine outcomes now pass the strict
+  coverage/receipt reconstruction boundary, and exact source snapshots ignore
+  caller-shadowed typed-array properties/iterators while rejecting shared or
+  resizable backing storage.
+- Updated the transitive `brace-expansion` development dependency to 5.0.8 so
+  the blocking high-severity dependency audit is clean.

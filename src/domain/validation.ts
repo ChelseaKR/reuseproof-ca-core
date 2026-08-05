@@ -1,5 +1,59 @@
 /** Shared fail-closed validation for JSON-shaped domain inputs. */
 
+const typedArrayPrototype = Object.getPrototypeOf(Uint8Array.prototype) as object;
+const typedArrayByteLengthDescriptor = Object.getOwnPropertyDescriptor(
+  typedArrayPrototype,
+  'byteLength',
+);
+const typedArrayBufferDescriptor = Object.getOwnPropertyDescriptor(typedArrayPrototype, 'buffer');
+const arrayBufferResizableDescriptor = Object.getOwnPropertyDescriptor(
+  ArrayBuffer.prototype,
+  'resizable',
+);
+
+export interface InspectedUint8Array {
+  readonly bytes: Uint8Array;
+  readonly byteLength: number;
+}
+
+/**
+ * Inspect a Uint8Array through intrinsic typed-array slots.
+ *
+ * Caller-defined accessors and iterators cannot shadow the measured length or backing buffer.
+ * Shared backing storage is rejected because it cannot provide a stable evidence snapshot.
+ */
+export function inspectUint8Array(value: unknown, label: string): InspectedUint8Array {
+  if (!(value instanceof Uint8Array)) {
+    throw new TypeError(`${label} must be a Uint8Array`);
+  }
+  /* v8 ignore next -- these getters are required ECMAScript typed-array intrinsics. */
+  if (
+    typedArrayByteLengthDescriptor?.get === undefined ||
+    typedArrayBufferDescriptor?.get === undefined
+  ) {
+    throw new TypeError('Uint8Array intrinsic inspection is unavailable');
+  }
+  let byteLength: unknown;
+  let buffer: unknown;
+  try {
+    byteLength = typedArrayByteLengthDescriptor.get.call(value);
+    buffer = typedArrayBufferDescriptor.get.call(value);
+  } catch (error) {
+    throw new TypeError(`${label} must be a directly inspectable Uint8Array`, { cause: error });
+  }
+  if (typeof byteLength !== 'number' || !Number.isSafeInteger(byteLength) || byteLength < 0) {
+    /* v8 ignore next -- the intrinsic byteLength getter returns a non-negative safe integer. */
+    throw new TypeError(`${label} has an invalid intrinsic byte length`);
+  }
+  if (typeof SharedArrayBuffer !== 'undefined' && buffer instanceof SharedArrayBuffer) {
+    throw new TypeError(`${label} must not use SharedArrayBuffer backing storage`);
+  }
+  if (buffer instanceof ArrayBuffer && arrayBufferResizableDescriptor?.get?.call(buffer) === true) {
+    throw new TypeError(`${label} must not use resizable ArrayBuffer backing storage`);
+  }
+  return { bytes: value, byteLength };
+}
+
 /** Require a plain or null-prototype object before inspecting any of its fields. */
 export function requirePlainRecord(value: unknown, label: string): Record<string, unknown> {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) {

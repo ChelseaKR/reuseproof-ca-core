@@ -131,12 +131,6 @@ function validateGovernance(submissions: readonly NormalizedSubmission[]): void 
   const baseline = invariant(submissions[0], 'CSV reconciliation requires at least one source');
   const baselineResult = baseline.result;
   for (const submission of submissions) {
-    const mapping = createCsvMeasurementMapping(submission.input.mapping);
-    if (!submission.input.csvContract.identityFields.includes(mapping.observedAtField)) {
-      throw new RangeError(
-        'CSV reconciliation requires the mapped observed-at field in source identityFields',
-      );
-    }
     const result = submission.result;
     if (
       result.requiredSeriesContractHash !== baselineResult.requiredSeriesContractHash ||

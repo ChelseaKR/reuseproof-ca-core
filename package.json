@@ -12,7 +12,7 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
-    "demo": "npm run build --silent && node dist/scripts/demo.js fixtures/demo.json",
+    "demo": "npm run build --silent && node dist/scripts/demo.js fixtures/reconciled-demo.json",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "hygiene": "node scripts/check-hygiene.mjs",

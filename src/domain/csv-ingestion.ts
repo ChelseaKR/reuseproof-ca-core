@@ -4,7 +4,7 @@ import { createHash } from 'node:crypto';
 
 import { canonicalJson, sha256 } from './canonical.js';
 import { createTimeRange, deepFreeze, type TimeRange } from './model.js';
-import { requireStrictArray, requireStrictRecord } from './validation.js';
+import { inspectUint8Array, requireStrictArray, requireStrictRecord } from './validation.js';
 
 export const CSV_HARD_LIMITS = deepFreeze({
   maxBytes: 10_485_760,
@@ -597,10 +597,8 @@ export function ingestCsvSource(
   sourceBytes: Uint8Array,
 ): CsvIngestionResult {
   const contract = createCsvAdapterSourceContract(contractInput);
-  if (!(sourceBytes instanceof Uint8Array)) {
-    throw new TypeError('CSV source must be a Uint8Array');
-  }
-  const bytes = Uint8Array.from(sourceBytes);
+  const inspected = inspectUint8Array(sourceBytes, 'CSV source');
+  const bytes = new Uint8Array(inspected.bytes);
   if (bytes.byteLength > contract.limits.maxBytes) {
     return rejectSource(contract, bytes, 'byte_limit_exceeded');
   }

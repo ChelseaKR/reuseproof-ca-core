@@ -3,6 +3,7 @@
 import { canonicalJson, compareCodeUnits, sha256 } from './canonical.js';
 import {
   createCsvAdapterSourceContract,
+  hashCsvAdapterSourceContract,
   ingestCsvSource,
   type CsvAdapterSourceContract,
   type CsvIngestionResult,
@@ -96,6 +97,32 @@ export interface CsvMeasurementNormalizationInput {
   readonly mapping: CsvMeasurementMapping;
   readonly requiredSeriesContract: RequiredSeriesContract;
   readonly conversionRules: readonly UnitConversionRule[];
+}
+
+export interface CsvMeasurementGovernanceInput {
+  readonly csvContract: CsvAdapterSourceContract;
+  readonly mapping: CsvMeasurementMapping;
+  readonly requiredSeriesContract: RequiredSeriesContract;
+  readonly conversionRules: readonly UnitConversionRule[];
+}
+
+export interface CsvMeasurementGovernanceBinding {
+  readonly schemaVersion: 'csv-measurement-governance-binding/v1';
+  readonly requiredSeriesContractId: string;
+  readonly requiredSeriesContractVersion: string;
+  readonly requiredSeriesContractHash: string;
+  readonly csvContractHash: string;
+  readonly mappingHash: string;
+  readonly conversionRuleSetHash: string;
+  readonly governanceHash: string;
+}
+
+interface NormalizedCsvMeasurementGovernance {
+  readonly csvContract: CsvAdapterSourceContract;
+  readonly mapping: CsvMeasurementMapping;
+  readonly requiredContract: RequiredSeriesContract;
+  readonly rules: readonly UnitConversionRule[];
+  readonly binding: CsvMeasurementGovernanceBinding;
 }
 
 function requiredString(record: Record<string, unknown>, key: string, label: string): string {
@@ -231,6 +258,11 @@ function validateMappingBindings(
   if (mappedFields.some((field) => !columnNames.has(field))) {
     throw new RangeError('CSV measurement mapping fields must reference declared source columns');
   }
+  if (!csvContract.identityFields.includes(mapping.observedAtField)) {
+    throw new RangeError(
+      'CSV reconciliation requires the mapped observed-at field in source identityFields',
+    );
+  }
 }
 
 function normalizeRules(
@@ -297,6 +329,53 @@ function conversionRuleSetHash(rules: readonly UnitConversionRule[]): string {
   return sha256(canonicalJson({ schemaVersion: 'unit-conversion-rule-set-binding/v1', rules }));
 }
 
+function normalizeCsvMeasurementGovernance(
+  input: CsvMeasurementGovernanceInput,
+): NormalizedCsvMeasurementGovernance {
+  const outer = requireStrictRecord(
+    input,
+    ['csvContract', 'mapping', 'requiredSeriesContract', 'conversionRules'],
+    [],
+    'csvMeasurementGovernance',
+  );
+  const csvContract = createCsvAdapterSourceContract(outer.csvContract);
+  const mapping = createCsvMeasurementMapping(outer.mapping);
+  const requiredContract = createRequiredSeriesContract(outer.requiredSeriesContract);
+  validateMappingBindings(csvContract, mapping, requiredContract);
+  const rules = normalizeRules(outer.conversionRules, requiredContract, mapping);
+  const base = {
+    schemaVersion: 'csv-measurement-governance-binding/v1' as const,
+    requiredSeriesContractId: requiredContract.contractId,
+    requiredSeriesContractVersion: requiredContract.version,
+    requiredSeriesContractHash: hashRequiredSeriesContract(requiredContract),
+    csvContractHash: hashCsvAdapterSourceContract(csvContract),
+    mappingHash: hashCsvMeasurementMapping(mapping),
+    conversionRuleSetHash: conversionRuleSetHash(rules),
+  };
+  return deepFreeze({
+    csvContract,
+    mapping,
+    requiredContract,
+    rules,
+    binding: {
+      ...base,
+      governanceHash: sha256(
+        canonicalJson({
+          schemaVersion: 'csv-measurement-governance-set-binding/v1',
+          governance: base,
+        }),
+      ),
+    },
+  });
+}
+
+/** Validate and content-address source-independent measurement governance before data arrives. */
+export function bindCsvMeasurementGovernance(
+  input: CsvMeasurementGovernanceInput,
+): CsvMeasurementGovernanceBinding {
+  return normalizeCsvMeasurementGovernance(input).binding;
+}
+
 function observationId(
   rowFingerprint: string,
   requiredSeriesContractHash: string,
@@ -352,18 +431,20 @@ export function normalizeCsvMeasurements(
     [],
     'csvMeasurementNormalization',
   );
-  const csvContract = createCsvAdapterSourceContract(outer.csvContract);
-  const mapping = createCsvMeasurementMapping(outer.mapping);
-  const requiredContract = createRequiredSeriesContract(outer.requiredSeriesContract);
-  validateMappingBindings(csvContract, mapping, requiredContract);
-  const rules = normalizeRules(outer.conversionRules, requiredContract, mapping);
+  const governance = normalizeCsvMeasurementGovernance({
+    csvContract: outer.csvContract as CsvAdapterSourceContract,
+    mapping: outer.mapping as CsvMeasurementMapping,
+    requiredSeriesContract: outer.requiredSeriesContract as RequiredSeriesContract,
+    conversionRules: outer.conversionRules as readonly UnitConversionRule[],
+  });
+  const { csvContract, mapping, requiredContract, rules } = governance;
   if (!(outer.sourceBytes instanceof Uint8Array)) {
     throw new TypeError('csvMeasurementNormalization.sourceBytes must be a Uint8Array');
   }
   const routing = ingestCsvSource(csvContract, outer.sourceBytes);
-  const requiredSeriesContractHash = hashRequiredSeriesContract(requiredContract);
-  const mappingHash = hashCsvMeasurementMapping(mapping);
-  const ruleSetHash = conversionRuleSetHash(rules);
+  const requiredSeriesContractHash = governance.binding.requiredSeriesContractHash;
+  const mappingHash = governance.binding.mappingHash;
+  const ruleSetHash = governance.binding.conversionRuleSetHash;
   const base = {
     schemaVersion: 'csv-measurement-normalization-result/v1' as const,
     sourceDisposition: routing.sourceDisposition,
