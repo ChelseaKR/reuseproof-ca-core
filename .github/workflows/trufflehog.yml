@@ -35,4 +35,13 @@ jobs:
         uses: trufflesecurity/trufflehog@6f3c981e7b77f235fd2702dd74af25fc4b72bf11 # v3.96.0
         with:
           path: ./
-          extra_args: --only-verified --fail
+          # Pinned. The action's `version` input defaults to "latest" and it runs
+          # `ghcr.io/trufflesecurity/trufflehog:${VERSION}`, so SHA-pinning the action
+          # above does not pin what actually scans. That is how this gate changed
+          # behaviour with no commit here: upstream published 3.96.0 and the next
+          # run picked it up.
+          version: '3.96.0'
+          # `--fail` is not passed. The action's own command already includes it
+          # and repeating a flag is a hard CLI error, so this scan exited 1 at
+          # startup having read nothing: no chunk count, no findings, no coverage.
+          extra_args: --only-verified
