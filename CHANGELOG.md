@@ -28,6 +28,16 @@ No version has been tagged yet.
 
 ### Added
 
+- On-disk frozen-bundle verification (`verifyFrozenReportBundleAtPath`): the
+  write boundary had no read side, so once a bundle left memory nothing in this
+  repository could tell an intact one from an edited one. Verification is rooted
+  at `report-freeze.json` and closes the chain through the receipt core to every
+  rendered artifact's bytes. Missing, unreadable, non-UTF-8, non-canonical,
+  wrongly versioned, structurally altered, duplicated, reordered, extra and
+  non-regular entries all raise a typed `FrozenBundleVerificationError` carrying
+  a machine-readable reason, so "could not check" can never be returned as
+  "verified". Byte integrity only — an unsigned bundle can still be regenerated
+  wholesale, which the returned limitations state explicitly.
 - Signed-tag release-candidate authorization that proves stable SemVer,
   protected-main ancestry, and the exact current main commit before the private
   package's verification workflow receives execution authority.
