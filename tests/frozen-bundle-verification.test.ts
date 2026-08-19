@@ -655,6 +655,47 @@ describe('on-disk alteration attacks', () => {
       await chmod(directory, 0o700);
     }
   });
+
+  it('A49 catches an artifact dropped from the freeze manifest to escape checking', async () => {
+    const directory = await writeBundle();
+    const freeze = await readControl(directory, 'report-freeze.json');
+    await overwrite(
+      directory,
+      'report-freeze.json',
+      canonicalJson({
+        ...freeze,
+        renderManifest: (freeze.renderManifest as Record<string, unknown>[]).filter(
+          (item) => item.logicalFilename !== 'coverage-report.csv',
+        ),
+      }),
+    );
+    await expectRefusal(directory, 'render_manifest_disagreement');
+  });
+
+  it('A50 catches an artifact dropped from both manifests and consistently rehashed', async () => {
+    const directory = await writeBundle();
+    const drop = (core: Record<string, unknown>): Record<string, unknown> => ({
+      ...core,
+      renderManifest: (core.renderManifest as Record<string, unknown>[]).filter(
+        (item) => item.logicalFilename !== 'coverage-report.csv',
+      ),
+    });
+    const forgedReceipt = canonicalJson(drop(await readControl(directory, 'receipt-core.json')));
+    await overwrite(directory, 'receipt-core.json', forgedReceipt);
+    const forgedReceiptHash = sha256(forgedReceipt);
+    await overwrite(
+      directory,
+      'report-freeze.json',
+      canonicalJson({
+        ...drop(await readControl(directory, 'report-freeze.json')),
+        receiptCoreHash: forgedReceiptHash,
+        receiptId: `rp1-${forgedReceiptHash}`,
+      }),
+    );
+    // Every hash in the shrunken bundle now agrees. The CSV left on disk is what gives it away,
+    // which is why the bundle is a closed set rather than a list of files worth checking.
+    await expectRefusal(directory, 'unexpected_bundle_entry');
+  });
 });
 
 describe('the miss this verifier does not hide', () => {
