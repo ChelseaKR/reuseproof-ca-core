@@ -4,8 +4,8 @@
 # npm audit and marker hygiene, the exact same target a contributor runs
 # locally — so a release can never ship a commit that didn't pass its own gate.
 # It also refuses to release a tag whose CHANGELOG has no matching section.
-# There is no publish step yet: the package is `private: true` and nothing is
-# distributed; a stub publish job that always passed would be a false-green gate.
+# There is no publish step yet: nothing is distributed to a registry; a stub
+# publish job that always passed would be a false-green gate.
 name: release
 
 on:
