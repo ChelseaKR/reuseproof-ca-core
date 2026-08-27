@@ -2,8 +2,13 @@
  * Tests for scripts/codeql-gate.mjs — especially that it does NOT fail open.
  *
  * The four "no SARIF" cases are the point of this file. A gate that returns success when it finds
- * no SARIF reports a clean scan for an analysis that never ran, and with no code-scanning
- * dashboard on this private repo nothing else would notice.
+ * no SARIF reports a clean scan for an analysis that never ran, and since the analysis is never
+ * uploaded to a code-scanning dashboard, nothing else would notice.
+ *
+ * The accepted-findings block is the second point. That register is the only way an
+ * error-severity finding can leave this gate green, so its matchers have to be exact and its
+ * staleness check has to bite: a register that quietly widened would disable the gate without
+ * ever failing it.
  */
 import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -11,9 +16,19 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // @ts-expect-error -- plain .mjs helper, deliberately outside the typed `src` project
-import { gate } from '../scripts/codeql-gate.mjs';
+import { ACCEPTED_FINDINGS, gate } from '../scripts/codeql-gate.mjs';
 
-const runGate = gate as (paths: string[]) => Promise<number>;
+interface AcceptedFinding {
+  ruleId: string;
+  category: string;
+  file: string;
+  messageIncludes: string;
+  reason: string;
+  removedBy: string;
+}
+
+const runGate = gate as (paths: string[], register?: AcceptedFinding[]) => Promise<number>;
+const register = ACCEPTED_FINDINGS as AcceptedFinding[];
 
 interface SarifResult {
   ruleId: string;
@@ -145,5 +160,119 @@ describe('gate verdicts', () => {
       sarif([{ ruleId: 'x/y', level: 'error', message: { text: 'boom' } }]),
     );
     expect(await runGate([dir])).toBe(1);
+  });
+});
+
+describe('accepted findings', () => {
+  const accepted: AcceptedFinding = {
+    ruleId: 'actions/some-query',
+    category: '/language:actions',
+    file: '.github/workflows/example.yml',
+    messageIncludes: 'needs.authorize.outputs.release-commit',
+    reason: 'assessed and accepted for the purposes of this test',
+    removedBy: 'the finding no longer being reported',
+  };
+
+  /** A SARIF run in `category` holding one error-severity result at `file` saying `text`. */
+  function analysed(category: string, results: { file: string; ruleId: string; text: string }[]) {
+    return {
+      runs: [
+        {
+          automationDetails: { id: `${category}/` },
+          tool: { driver: { rules: [] } },
+          results: results.map((result) => ({
+            ruleId: result.ruleId,
+            level: 'error',
+            message: { text: result.text },
+            locations: [{ physicalLocation: { artifactLocation: { uri: result.file } } }],
+          })),
+        },
+      ],
+    };
+  }
+
+  const matching = {
+    ruleId: accepted.ruleId,
+    file: accepted.file,
+    text: `poisoning via ${accepted.messageIncludes}.`,
+  };
+
+  it('lets the accepted finding through', async () => {
+    await writeSarif(dir, 'results.sarif', analysed(accepted.category, [matching]));
+    expect(await runGate([dir], [accepted])).toBe(0);
+  });
+
+  it('still fails on a different rule in the accepted file', async () => {
+    const otherRule = { ...matching, ruleId: 'actions/another-query' };
+    await writeSarif(dir, 'results.sarif', analysed(accepted.category, [matching, otherRule]));
+    expect(await runGate([dir], [accepted])).toBe(1);
+  });
+
+  it('still fails on the same rule in a different file', async () => {
+    const elsewhere = { ...matching, file: '.github/workflows/other.yml' };
+    await writeSarif(dir, 'results.sarif', analysed(accepted.category, [matching, elsewhere]));
+    expect(await runGate([dir], [accepted])).toBe(1);
+  });
+
+  it('still fails on the same rule and file in a different analysis category', async () => {
+    await writeSarif(dir, 'results.sarif', analysed('/language:javascript-typescript', [matching]));
+    expect(await runGate([dir], [accepted])).toBe(1);
+  });
+
+  it('still fails when the message no longer names the accepted untrusted input', async () => {
+    const rephrased = { ...matching, text: 'poisoning via github.event.pull_request.head.sha.' };
+    await writeSarif(dir, 'results.sarif', analysed(accepted.category, [rephrased]));
+    expect(await runGate([dir], [accepted])).toBe(1);
+  });
+
+  it('fails on a run with no category at all rather than accepting into the gap', async () => {
+    await writeSarif(
+      dir,
+      'results.sarif',
+      sarif([{ ruleId: accepted.ruleId, level: 'error', message: { text: matching.text } }]),
+    );
+    expect(await runGate([dir], [accepted])).toBe(1);
+  });
+
+  it('fails when an acceptance matches nothing in an analysed category', async () => {
+    await writeSarif(dir, 'results.sarif', analysed(accepted.category, []));
+    expect(await runGate([dir], [accepted])).toBe(1);
+  });
+
+  it('does not enforce staleness for a category that was not analysed', async () => {
+    await writeSarif(dir, 'results.sarif', analysed('/language:javascript-typescript', []));
+    expect(await runGate([dir], [accepted])).toBe(0);
+  });
+});
+
+/**
+ * The register that actually ships. The mechanism is exercised above against a synthetic entry;
+ * this asserts the real entries are usable by it and carry the reasoning an acceptance owes a
+ * reader. An entry missing `messageIncludes`, say, would silently match every message.
+ */
+describe('the shipped acceptance register', () => {
+  it('gives every entry all six fields, non-empty', () => {
+    const fields: (keyof AcceptedFinding)[] = [
+      'ruleId',
+      'category',
+      'file',
+      'messageIncludes',
+      'reason',
+      'removedBy',
+    ];
+    for (const entry of register) {
+      for (const field of fields) {
+        expect(typeof entry[field], `${entry.ruleId}.${field}`).toBe('string');
+        expect(entry[field].length, `${entry.ruleId}.${field}`).toBeGreaterThan(0);
+      }
+    }
+  });
+
+  it('accepts named findings only, never a whole rule, file or category', () => {
+    for (const entry of register) {
+      expect(entry.file).not.toContain('*');
+      expect(entry.ruleId).not.toContain('*');
+      expect(entry.messageIncludes).not.toContain('*');
+    }
   });
 });

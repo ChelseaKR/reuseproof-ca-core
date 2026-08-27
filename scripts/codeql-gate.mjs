@@ -2,14 +2,14 @@
 /**
  * CodeQL SARIF gate — fails the build on any error-severity finding.
  *
- * Code scanning is not enabled on this private repo (no GitHub Advanced Security), so
- * `codeql-action/analyze` cannot upload its SARIF and would otherwise fail the job outright with
- * "Code scanning is not enabled for this repository". The workflow therefore runs the analysis
- * with `upload: never` and writes the SARIF locally; this script reads it and fails on any result
- * whose rule carries `problem.severity: error` (or whose own `level` is `error`).
+ * The workflow runs the analysis with `upload: never` and writes the SARIF locally; this script
+ * reads it and fails on any result whose rule carries `problem.severity: error` (or whose own
+ * `level` is `error`). That arrangement dates from when this repository was private and code
+ * scanning was unavailable, so `codeql-action/analyze` failed outright with "Code scanning is not
+ * enabled for this repository". It stays because it is the enforcement: a local gate fails the
+ * job, whereas an uploaded SARIF only populates a dashboard nobody is obliged to read.
  *
- * There is no code-scanning dashboard to review the findings in, so this gate IS the enforcement.
- * It fails closed: finding no .sarif at all exits 1 rather than reporting a pass, because a
+ * The gate fails closed: finding no .sarif at all exits 1 rather than reporting a pass, because a
  * missing SARIF means the analysis did not run, not that the code is clean.
  *
  * CodeQL emits its rule metadata under `runs[].tool.extensions[].rules`, NOT under
@@ -26,6 +26,10 @@
  * that distinction is visible in the log. Raising the floor to fail on warnings is a separate,
  * deliberate decision — it is not made here, and nothing that passes today starts failing.
  *
+ * A very small number of error-severity findings are accepted rather than fixed. They are listed
+ * in ACCEPTED_FINDINGS below with the reasoning and the condition that would retire them, and they
+ * are printed on every run so a green gate never means "CodeQL found nothing". See ADR-0010.
+ *
  *     node scripts/codeql-gate.mjs <sarif-dir-or-file> [...]
  */
 
@@ -40,6 +44,97 @@ const severityRank = (severity) => SEVERITY_ORDER[severity] ?? 99;
 
 // Composite map key for the per-rule tally; NUL cannot occur in a CodeQL rule id.
 const KEY_SEP = '\u0000';
+
+/**
+ * Error-severity findings this repository has assessed and accepted.
+ *
+ * An entry is NOT a way to quiet a query. Every field is a matcher and all four must hold, so an
+ * entry excuses one finding of one rule, in one analysis category, in one file, about one named
+ * untrusted input. A second instance of the same rule — another file, another input — is still an
+ * error and still fails the build. Nothing here is wildcarded and nothing here is by severity.
+ *
+ * An entry that matches nothing FAILS the gate whenever its category was analysed. An acceptance
+ * is a claim that a specific finding exists and has been reasoned about; once that stops being
+ * true the claim is stale, and a stale exemption sitting in a security gate is exactly the thing
+ * that quietly becomes a blanket one. Fixing the finding therefore also means deleting its entry.
+ *
+ * `category` is matched against the SARIF run's `automationDetails.id` (the `category:` passed to
+ * `codeql-action/analyze`, trailing slash ignored). A run carrying no category matches no entry,
+ * so its findings are gated normally — fail closed, not open.
+ */
+export const ACCEPTED_FINDINGS = [
+  {
+    ruleId: 'actions/cache-poisoning/poisonable-step',
+    category: '/language:actions',
+    file: '.github/workflows/release.yml',
+    messageIncludes: 'needs.authorize.outputs.release-commit',
+    reason:
+      'release.yml checks out the commit its authorize job resolved from a signed stable SemVer ' +
+      'tag on main, then runs `make verify` there. CodeQL cannot see that authorization, and its ' +
+      'control-check model has no construct that protects a workflow_dispatch event at all, so ' +
+      'no hardening of this workflow can clear the alert. The two shapes that would clear it are ' +
+      'both worse: checking out the raw tag input instead of the resolved commit reintroduces a ' +
+      'tag-move race between authorization and checkout, and not verifying at the tagged commit ' +
+      'removes the point of the job. The impact is instead removed at the other end: no workflow ' +
+      'here restores an Actions cache any more (see ci.yml), so the default branch has no cache ' +
+      'entry for a poisoned write to land in.',
+    removedBy:
+      'Either the release job stops checking out an authorize-resolved commit, or CodeQL gains a ' +
+      'control check that models workflow_dispatch authorization. Re-run the actions analysis ' +
+      'after any change to release.yml and delete this entry the moment the finding is gone.',
+  },
+];
+
+// SARIF spells the analysis category as `automationDetails.id`, and codeql-action appends a
+// trailing slash to whatever `category:` the workflow passed. Compare without it.
+const runCategory = (run) => String(run.automationDetails?.id ?? '').replace(/\/+$/u, '');
+
+const resultFile = (result) => result.locations?.[0]?.physicalLocation?.artifactLocation?.uri ?? '';
+
+/** Whether `entry` excuses `result`. Every matcher must hold; none of them is optional. */
+function accepts(entry, result, category) {
+  return (
+    entry.ruleId === result.ruleId &&
+    entry.category === category &&
+    entry.file === resultFile(result) &&
+    String(result.message?.text ?? '').includes(entry.messageIncludes)
+  );
+}
+
+function reportAccepted(accepted) {
+  if (accepted.length === 0) {
+    return;
+  }
+  console.log(
+    `CodeQL: ${accepted.length} error-severity finding(s) ACCEPTED, not gated. Each was assessed ` +
+      `and recorded in scripts/codeql-gate.mjs (ADR-0010); they are listed here so a green gate ` +
+      `is never read as "CodeQL found nothing".`,
+  );
+  for (const entry of accepted) {
+    console.log(`  ${entry.ruleId}  ${entry.file}`);
+    console.log(`    why accepted: ${entry.reason}`);
+    console.log(`    removed by:   ${entry.removedBy}`);
+  }
+}
+
+/**
+ * Accepted entries whose category was analysed but which matched no finding. Reported as errors:
+ * see the note on ACCEPTED_FINDINGS for why a stale acceptance must not be allowed to linger.
+ */
+function staleAcceptances(register, matched, categoriesSeen) {
+  const stale = register.filter(
+    (entry) => categoriesSeen.has(entry.category) && !matched.has(entry),
+  );
+  for (const entry of stale) {
+    console.error(
+      `::error::accepted finding [${entry.ruleId}] in ${entry.file} was not reported by the ` +
+        `${entry.category} analysis. Either it is fixed — delete its entry from ACCEPTED_FINDINGS ` +
+        `in scripts/codeql-gate.mjs — or the matchers no longer describe it and the acceptance ` +
+        `must be re-examined rather than re-fitted.`,
+    );
+  }
+  return stale.length;
+}
 
 async function sarifFiles(paths) {
   const out = [];
@@ -148,7 +243,7 @@ function reportAdvisory(counts, perRule) {
   }
 }
 
-export async function gate(paths) {
+export async function gate(paths, register = ACCEPTED_FINDINGS) {
   const files = await sarifFiles(paths);
   if (files.length === 0) {
     // FAIL, never pass. No SARIF does not mean "no findings" — it means the analysis did not run,
@@ -166,33 +261,49 @@ export async function gate(paths) {
   const counts = new Map();
   const perRule = new Map();
   const bump = (map, key) => map.set(key, (map.get(key) ?? 0) + 1);
+  const matched = new Set();
+  const categoriesSeen = new Set();
+  const accepted = [];
   let totalErrors = 0;
   for (const file of files) {
     const doc = JSON.parse(await readFile(file, 'utf8'));
     for (const run of doc.runs ?? []) {
       const rules = collectRules(run);
+      const category = runCategory(run);
+      if (category) {
+        categoriesSeen.add(category);
+      }
       for (const result of run.results ?? []) {
+        // Acceptance is checked before classification so an accepted finding is neither counted
+        // as an error nor smuggled into the advisory tally as something milder than it is.
+        const entry = register.find((candidate) => accepts(candidate, result, category));
+        if (entry) {
+          matched.add(entry);
+          accepted.push(entry);
+          continue;
+        }
         const severity = severityOf(result, rules);
         bump(counts, severity);
         bump(perRule, `${severity}${KEY_SEP}${result.ruleId ?? '?'}`);
-      }
-      const errors = (run.results ?? []).filter((result) => isError(result, rules));
-      totalErrors += errors.length;
-      for (const error of errors) {
-        const location = (error.locations ?? [{}])[0]?.physicalLocation ?? {};
+        if (!isError(result, rules)) {
+          continue;
+        }
+        totalErrors += 1;
+        const location = (result.locations ?? [{}])[0]?.physicalLocation ?? {};
         const uri = location.artifactLocation?.uri ?? '?';
         const line = location.region?.startLine ?? '?';
         console.error(
-          `::error file=${uri},line=${line}::[${error.ruleId}] ${error.message?.text ?? ''}`,
+          `::error file=${uri},line=${line}::[${result.ruleId}] ${result.message?.text ?? ''}`,
         );
       }
     }
   }
   console.log(
-    `CodeQL: ${totalErrors} error-severity finding(s) across ${files.length} SARIF file(s).`,
+    `CodeQL: ${totalErrors} gated error-severity finding(s) across ${files.length} SARIF file(s).`,
   );
+  reportAccepted(accepted);
   reportAdvisory(counts, perRule);
-  return totalErrors > 0 ? 1 : 0;
+  return totalErrors + staleAcceptances(register, matched, categoriesSeen) > 0 ? 1 : 0;
 }
 
 const entrypoint = process.argv[1] ? pathToFileURL(resolve(process.argv[1])).href : '';
