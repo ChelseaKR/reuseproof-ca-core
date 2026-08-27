@@ -31,7 +31,16 @@ jobs:
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version-file: .nvmrc
-          cache: npm
+          # No npm cache. `release.yml` checks out a commit resolved by its
+          # authorize job and runs `make verify` there, and a workflow_dispatch
+          # run always carries the default branch's cache scope — so anything
+          # that job executes can write an entry this job would later restore.
+          # `release.yml` has run cache-free since #18; dropping the restore
+          # side too leaves the default branch with no Actions cache for that
+          # path to poison at all. See ADR-0010. `npm ci` on this dependency
+          # tree costs seconds, and a cache-free install is the more
+          # deterministic of the two anyway.
+          package-manager-cache: false
 
       - name: Run the repository merge gate
         run: make verify

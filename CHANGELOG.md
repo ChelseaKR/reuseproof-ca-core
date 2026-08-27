@@ -10,6 +10,20 @@ No version has been tagged yet.
 
 ### Security
 
+- Stop restoring an npm cache in `ci.yml`, so no workflow in this repository
+  reads or writes an Actions cache. `release.yml` verifies an authorize-resolved
+  commit under the default branch's cache scope, and the code it runs could
+  write an entry `ci.yml` would later restore; with the restore side gone, the
+  default branch has no cache entry for that path to poison (ADR-0010).
+- Record accepted CodeQL findings in `scripts/codeql-gate.mjs` rather than
+  leaving the gate red or lowering it. An acceptance matches one rule, in one
+  analysis category, in one file, about one named untrusted input; a second
+  instance of the same rule still fails the build, and an acceptance matching
+  nothing fails the build too, so a stale exemption cannot sit there widening.
+  Accepted findings print on every run with their reasoning and their removal
+  condition. The first and only entry is
+  `actions/cache-poisoning/poisonable-step` in `release.yml`, which has failed
+  the default branch since 2026-08-18 (ADR-0010).
 - Keep the tag-triggered release verification path cache-free so runtime
   artifacts cannot inherit mutable npm cache contents from a less-trusted run.
 - Pin the transitive `postcss` build dependency (pulled in via `vite`/`vitest`)
