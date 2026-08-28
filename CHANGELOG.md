@@ -8,6 +8,47 @@ No version has been tagged yet.
 
 ## [Unreleased]
 
+### Fixed
+
+- Marker hygiene no longer reports success for a scan that examined nothing.
+  `scripts/check-hygiene.mjs` walked three roots for two file extensions and
+  exited 0 whenever it found no violations — including when it found no files at
+  all, which is what happens if a root is renamed, moved under a different
+  layout, or comes to hold no `.ts`/`.mjs`. `make verify` then reported hygiene
+  as enforced having read nothing. An empty scan and an unreadable root are now
+  failures, the failure names the root, and a passing run states how many files
+  it covered (ADR-0011).
+- Coverage threshold keys that match no file are now a failing test.
+  `vitest.config.ts` expresses the 95% safety-core floor with keys like
+  `src/domain/**` and five named files, and Vitest ignores a key matching
+  nothing without any diagnostic — so renaming a safety-core file silently
+  dropped it to the 80% global floor while `DEFINITION_OF_DONE.md` went on
+  promising the 95% one. `tests/coverage-thresholds.test.ts` also refuses a
+  keyed threshold set below the global floor, a keyed threshold that omits a
+  metric, and a key shape the guard cannot interpret (ADR-0011).
+
+### Added
+
+- `npm run demo:check` as an eighth `make verify` step, running the already-built
+  demo against `fixtures/reconciled-demo.json`. The quickstart `README.md`
+  advertises was executed by no gate, and that fixture was read by no test, so
+  the documented entrypoint could break with CI green (ADR-0011).
+- `tests/hygiene.test.ts`, covering the previously untested marker-hygiene gate:
+  bare markers, issue references, word-boundary matching, nested directories,
+  the empty-scan and missing-root failures, and the shipped roots.
+- `docs/plans/improvement-plan.md`, recording the CI failure diagnosis. All 32
+  recorded workflow failures are classified: 21 were jobs GitHub declined to
+  start for an account-level Actions billing reason and ran zero steps, 4 were a
+  real CodeQL error-severity finding, 3 a CodeQL upload rejection, 2 a TruffleHog
+  CLI misuse and 2 a genuine `make verify` failure. No test was ever flaky. The
+  document also records the highest-ranked open finding: the `codeql` jobs are
+  not required status checks on `main`, so every CodeQL failure to date was
+  advisory at the merge boundary. That is a repository ruleset change and remains
+  open.
+- `README.md` now states the signature of a starved job — a `failure` with zero
+  steps and a sub-10-second wall time — because it is indistinguishable from a
+  real gate failure in `gh run list`.
+
 ### Security
 
 - Stop restoring an npm cache in `ci.yml`, so no workflow in this repository
