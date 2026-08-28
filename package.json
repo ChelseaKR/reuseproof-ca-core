@@ -16,6 +16,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "demo": "npm run build --silent && node dist/scripts/demo.js fixtures/reconciled-demo.json",
+    "demo:check": "node dist/scripts/demo.js fixtures/reconciled-demo.json > /dev/null",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "hygiene": "node scripts/check-hygiene.mjs",
