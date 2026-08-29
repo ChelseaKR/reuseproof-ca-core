@@ -7,5 +7,6 @@ verify:
 	npm run typecheck
 	npm run test:coverage
 	npm run build
+	npm run demo:check
 	npm audit --audit-level=high
 	npm run hygiene
