@@ -10,11 +10,15 @@ Run the synthetic local slice (everything is local; no credentials, no network w
 
 ```sh
 npm ci          # install pinned dependencies
-make verify     # format check + lint + typecheck + tests with coverage + build + audit + hygiene (CI parity)
+make verify     # format check + lint + typecheck + tests with coverage + build + demo + audit + hygiene (CI parity)
 npm run demo    # synthetic exact CSV → reconciliation → coverage/winner aggregation → receipt → frozen draft
 ```
 
-What the demo exercises — and the deliberate limits of the local slice — are described under [Implementation status](#implementation-status).
+What the demo exercises — and the deliberate limits of the local slice — are described under [Implementation status](#implementation-status). `make verify` runs the demo too, so the quickstart above cannot rot while the merge gate stays green.
+
+### Reading a red CI run
+
+A `failure` with **zero steps and a sub-10-second wall time is a starved job, not a gate result**: GitHub declined to start it for an account-level Actions billing reason, and the annotation on the check run is the only record. It looks identical to a real gate failure in `gh run list`, and it accounted for 21 of the 32 failures in this repository's history. Confirm with `gh api repos/{owner}/{repo}/check-runs/<id>/annotations` before spending time on the code. The full analysis is in [docs/plans/improvement-plan.md](docs/plans/improvement-plan.md).
 
 ## Exact V1 definition
 
@@ -81,6 +85,9 @@ The product never resolves that legal-text tension on its own.
 | [ADR-0007](docs/adr/0007-deterministic-cross-source-csv-reconciliation.md) | Deterministic cross-source CSV replay and conflict reconciliation |
 | [ADR-0008](docs/adr/0008-deterministic-reconciled-evidence-evaluation.md) | Deterministic multi-series reconciliation through coverage, aggregation, receipt and freeze |
 | [ADR-0009](docs/adr/0009-exact-replay-integrity-validation.md) | Strict exact-input replay validation for the complete reconciled evidence result |
+| [ADR-0010](docs/adr/0010-accepted-codeql-findings-register.md) | Accepted-CodeQL-findings register and a cache-free default branch |
+| [ADR-0011](docs/adr/0011-gates-that-cannot-report-an-empty-check.md) | No gate may report success for a check it did not perform |
+| [improvement-plan](docs/plans/improvement-plan.md) | CI failure diagnosis, ranked findings, and what remains blocked |
 
 ## Working principles
 
@@ -156,9 +163,9 @@ standards. Applicability and current state:
 | Standard | Applies? | State |
 |---|---|---|
 | Responsible-Tech Framework | Applies | Applies — governance, claims and safety-case posture in [07-GOVERNANCE-LEGAL-SAFETY](docs/07-GOVERNANCE-LEGAL-SAFETY.md) and the Working principles above |
-| Code Quality | Applies | Applies — Prettier + ESLint (zero warnings) + strict `tsc` + Vitest + marker hygiene, all in `make verify` |
+| Code Quality | Applies | Applies — Prettier + ESLint (zero warnings) + strict `tsc` + Vitest + demo execution + marker hygiene, all in `make verify`; no gate may report success for a check it did not perform ([ADR-0011](docs/adr/0011-gates-that-cannot-report-an-empty-check.md)) |
 | Security & Supply-Chain | Applies | Applies — SHA-pinned Actions, CodeQL, TruffleHog weekly full-history sweep, gitleaks pre-commit, `npm audit` in the merge gate, Dependabot; threat model in [06-SECURITY-PRIVACY-THREAT-MODEL](docs/06-SECURITY-PRIVACY-THREAT-MODEL.md) |
-| CI/CD | Applies | Applies — `ci.yml` runs the literal `make verify` merge gate; scoped permissions and concurrency on every workflow |
+| CI/CD | Applies | Partly — `ci.yml` runs the literal `make verify` merge gate, with scoped permissions and concurrency on every workflow. **Gap:** the `codeql` jobs are not required status checks on `main`, so a CodeQL failure does not block a merge; see F1 in [docs/plans/improvement-plan.md](docs/plans/improvement-plan.md) |
 | Observability | Applies | Applies at library tier — deterministic, content-addressed artifacts and explicit outcome taxonomies are the current observability surface; SLOs/runbooks planned in [10-OPERATIONS-SRE](docs/10-OPERATIONS-SRE.md) for the hosted app |
 | Accessibility | N/A — current shipped slice is a TypeScript library/demo with no human-facing HTML; re-enters scope when the planned web app ships | Deterministic report HTML is built script-free with accessibility in mind ([08-ACCESSIBILITY-I18N](docs/08-ACCESSIBILITY-I18N.md)); full WCAG gates arrive with the web app |
 | Internationalization | Applies | [Deferred with a release target and rationale](docs/I18N.md); immutable machine contracts stay locale-independent while the first public web release is blocked on reviewed EN/ES catalogs and parity gates |

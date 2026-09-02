@@ -11,10 +11,13 @@ A change is mergeable only when the single repository gate, `make verify`, passe
 3. strict TypeScript type checking;
 4. Vitest branch coverage, including the 95% per-file safety-core floor;
 5. a production build;
-6. a blocking high-severity `npm audit`; and
-7. source-marker hygiene.
+6. execution of the documented demo against the shipped synthetic fixture;
+7. a blocking high-severity `npm audit`; and
+8. source-marker hygiene.
 
 The CI workflow may set up the pinned runtime and cache, but it calls only `make verify` for repository validation so CI and local behavior cannot drift.
+
+**No gate may report success for a check it did not perform.** A gate that finds nothing to examine — no source files, no SARIF, a threshold key matching no file — fails, and says so; it never reports a clean result for a scan that did not happen. A gate that passes states what it covered, so a green line is not read as "nothing found" when it means "nothing was looked at". See ADR-0011, and ADR-0010 for the same rule applied to the CodeQL SARIF gate.
 
 ## Review gate
 
