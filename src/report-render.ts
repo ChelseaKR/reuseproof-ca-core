@@ -96,6 +96,11 @@ export function requireSafeArtifactFilename(value: string): ReportArtifactFilena
   return value as ReportArtifactFilename;
 }
 
+/** Resolve the one media type allowlisted for a report artifact filename. */
+export function artifactMediaType(value: string): ReportMediaType {
+  return mediaTypeByFilename[requireSafeArtifactFilename(value)];
+}
+
 function escapeHtml(value: string): string {
   return value
     .replaceAll('&', '&amp;')
@@ -374,7 +379,7 @@ export function createRenderManifest(
       throw new TypeError(`${label}.logicalFilename must be text`);
     }
     const logicalFilename = requireSafeArtifactFilename(record.logicalFilename);
-    const mediaType = mediaTypeByFilename[logicalFilename];
+    const mediaType = artifactMediaType(logicalFilename);
     if (record.mediaType !== mediaType) {
       throw new TypeError('render artifact media type does not match its allowlisted filename');
     }
