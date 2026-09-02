@@ -45,7 +45,7 @@ make verify
 ```
 
 `make verify` runs **format-check + lint + typecheck + test/coverage + build +
-npm audit + marker hygiene** — the exact same target `ci.yml` and
+demo + npm audit + marker hygiene** — the exact same target `ci.yml` and
 `release.yml` invoke, on the same locked (`npm ci`) toolchain, so green
 locally means green in CI: there is no second, drifted reimplementation of the
 gate.
@@ -57,8 +57,15 @@ gate.
 | Type | `npm run typecheck` | `tsc --noEmit` over the full project |
 | Test + coverage | `npm run test:coverage` | Vitest with V8 coverage |
 | Build | `npm run build` | `tsc -p tsconfig.build.json` |
+| Demo | `npm run demo:check` | The documented quickstart runs on the shipped fixture |
 | Dependency audit | `npm audit --audit-level=high` | Known-vulnerable dependencies |
 | Marker hygiene | `npm run hygiene` | Every `TODO`/`FIXME`/`HACK` names an issue |
+
+A gate here must fail when it cannot establish that it checked anything —
+scanning zero files, finding no SARIF, or matching a threshold key against no
+file is a failure, not a pass — and a gate that passes says what it covered.
+See [ADR-0011](docs/adr/0011-gates-that-cannot-report-an-empty-check.md). If you
+add a step, add the test that proves it can still go red.
 
 Optionally install the pre-commit hooks (Prettier, ESLint, hygiene, gitleaks
 secret scan) so problems surface before a commit exists:

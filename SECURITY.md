@@ -62,3 +62,8 @@ boundary (see `docs/06-SECURITY-PRIVACY-THREAT-MODEL.md` and
   `make verify` and CI, Dependabot, CodeQL for TypeScript and the workflows
   themselves, gitleaks in pre-commit, a weekly full-history TruffleHog sweep);
   GitHub Actions are SHA-pinned.
+- Known limitation, stated rather than implied away: the CodeQL jobs run on
+  every pull request into `main` and fail the run on an error-severity finding,
+  but they are **not** required status checks, so such a failure does not by
+  itself block a merge today. Tracked as F1 in
+  [docs/plans/improvement-plan.md](docs/plans/improvement-plan.md).

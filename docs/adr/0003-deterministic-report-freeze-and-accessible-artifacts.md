@@ -24,6 +24,8 @@ Adopt a one-way five-layer pipeline:
 
 Every output boundary revalidates the links rather than trusting an object because its internal hashes happen to agree. Revalidation reconstructs exact-key outer and nested projection/core schemas, recomputes full coverage summaries from normalized observations/nonoperations/lifecycle inputs, derives the report-safe aggregates exactly, checks fixed thresholds/reasons/claims, critical-aggregate membership, scope, governing-contract preimage/descriptor bindings, normalized-input/summary-set hashes, the prior frozen-report chain and render bytes. The exported renderer independently verifies that its displayed content hash equals the canonical projection hash. The local file writer accepts no caller-selected filename: it stages five fixed files with exclusive creation and mode `0600`, syncs files/directories and exposes the completed `artifacts` directory with one rename inside a unique private container. On stage, write, rename or sync failure it attempts recursive container cleanup; if descriptor or container cleanup also fails, one aggregate error preserves both the primary and cleanup failures and the private container may require operator cleanup.
 
+The writer has a matching reader. `verifyFrozenReportBundleAtPath` re-derives the same links from the five files on disk and trusts nothing still held in memory: `report-freeze.json`'s own bytes yield the snapshot ID, that document names the exact receipt-core hash and derived receipt ID, and the two cores must agree on one canonically ordered render manifest whose declared byte lengths and digests every rendered artifact then satisfies. Control-file bytes must round-trip through canonicalization unchanged, carry exactly the fields their pinned schema version declares, and keep the unsigned, non-submittable, frozen boundary. Decoding is fatal rather than substituting, because a lossy decoder would turn corrupt bytes into U+FFFD and let damaged evidence reach the hash comparison as though it were merely different. Every refusal is a typed `FrozenBundleVerificationError` naming a machine-readable reason, and there is deliberately no partial or best-effort result, so a bundle that could not be checked never returns a verification.
+
 ## Canonical and accessibility rules
 
 - UTF-16 code-unit ordering, valid non-normalized Unicode, finite JSON numbers, no negative zero, fixed-millisecond UTC time and explicit schema nulls follow the existing restricted RFC 8785-compatible boundary.
@@ -41,15 +43,17 @@ Benefits:
 - runtime human records may legitimately differ without invalidating the deterministic evidence receipt;
 - report version/supersession is explicit rather than an implicit mutable “latest” lookup;
 - spreadsheet and HTML output have a bounded safety/accessibility baseline; and
-- a crash cannot expose a partially populated `artifacts` directory through the local writer.
+- a crash cannot expose a partially populated `artifacts` directory through the local writer; and
+- a written bundle can be re-checked later from its own bytes, so the manifest keeps governing the artifacts after they leave memory.
 
 Costs and limits:
 
 - schema versions advance to projection v3 and receipt-core v2;
 - exact bytes, including whitespace/CSS, are part of the receipt and require intentional versioning when changed;
 - the reference HTML is deliberately plain and English-only;
-- a unique container path is runtime-specific even though every file byte is deterministic; and
-- local fsync/rename is not dual-region durable acknowledgement or an adversarial shared-directory security boundary.
+- a unique container path is runtime-specific even though every file byte is deterministic;
+- local fsync/rename is not dual-region durable acknowledgement or an adversarial shared-directory security boundary; and
+- on-disk verification proves byte integrity, not authenticity. Because the bundle is deliberately unsigned there is nothing to forge: anyone holding this tool can regenerate a wholly self-consistent bundle, so the check detects alteration of a bundle, never forgery of one. It is sound only against an independently recorded snapshot ID, which the verifier returns for that purpose, and one bundle cannot prove the predecessor a superseding snapshot names.
 
 ## Alternatives considered
 
