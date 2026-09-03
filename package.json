@@ -1,7 +1,7 @@
 {
   "name": "reuseproof-ca-core",
   "version": "0.1.0",
-  "private": true,
+  "private": false,
   "description": "Read-only evidence-domain foundation for ReuseProof CA.",
   "type": "module",
   "engines": {
