@@ -11,8 +11,10 @@ name: codeql
 on:
   pull_request:
     branches: [main]
-  push:
-    branches: [main]
+  # No push: trigger. CI-CD-STANDARD.md 11e — the pull_request run below
+  # already analysed this exact commit, so re-running CodeQL on the merge
+  # to main pays for the same analysis twice. The weekly schedule keeps the
+  # default-branch alert baseline fresh when no PR has landed.
   schedule:
     - cron: '37 9 * * 2'
   workflow_dispatch: {}
