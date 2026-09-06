@@ -19,12 +19,24 @@
  * an error-severity finding even in principle. Rules are now read from the driver AND every
  * extension, and a rule's `defaultConfiguration.level` counts alongside `problem.severity`.
  *
- * Warning- and note-severity findings are REPORTED but deliberately do NOT affect the exit code.
- * They used to be invisible: the only line this script printed counted error-severity results, so
- * "CodeQL: 0 error-severity finding(s)" read as "CodeQL found nothing" when it often meant "CodeQL
- * found things, none of which this gate is allowed to fail on". The advisory summary exists so
- * that distinction is visible in the log. Raising the floor to fail on warnings is a separate,
- * deliberate decision — it is not made here, and nothing that passes today starts failing.
+ * CodeQL carries TWO severities per rule and they do not agree. `problem.severity` grades how
+ * confident and how noisy the QUERY is; `security-severity` is the CVSS score of the WEAKNESS it
+ * found. Gating on `problem.severity` alone therefore lets HIGH security findings through green:
+ * `js/incomplete-url-substring-sanitization` is `problem.severity: warning` carrying
+ * `security-severity: 7.8`, which GitHub itself renders as a **High** security alert. A security
+ * gate whose green check is compatible with an unreviewed CVSS 7.8 finding is not gating security
+ * — it is gating query noise and reporting the result as if it were the other thing.
+ *
+ * So the floor is two-sided: a finding gates when `problem.severity` (or its own `level`, or its
+ * rule's default level) is `error`, OR when its `security-severity` is at or above 7.0, GitHub's
+ * own high/critical boundary for code-scanning alerts. This gate and the Security tab then agree
+ * about what "High" means, if this repository ever gets Code Security.
+ *
+ * Everything below both floors is REPORTED but does NOT affect the exit code, now with its CVSS
+ * score where it has one. Those findings used to be invisible: the only line this script printed
+ * counted error-severity results, so "CodeQL: 0 error-severity finding(s)" read as "CodeQL found
+ * nothing" when it often meant "CodeQL found things, none of which this gate was allowed to fail
+ * on". Raising the advisory floor further is a separate, deliberate decision, not made here.
  *
  * A very small number of error-severity findings are accepted rather than fixed. They are listed
  * in ACCEPTED_FINDINGS below with the reasoning and the condition that would retire them, and they
@@ -40,13 +52,41 @@ import { pathToFileURL } from 'node:url';
 // Report order for the advisory summary; anything unrecognized sorts after these.
 const SEVERITY_ORDER = { error: 0, warning: 1, note: 2 };
 
+/**
+ * CVSS score at or above which a finding gates the build whatever its `problem.severity` says.
+ *
+ * 7.0 is GitHub's own high/critical boundary for code-scanning alerts. Lowering this number is a
+ * decision about what this repository will ship with; it is never the way to make a red gate green.
+ */
+export const SECURITY_SEVERITY_FLOOR = 7.0;
+
+/**
+ * The rule's CVSS score, or `undefined` when it carries none.
+ *
+ * SARIF spells it as a string. A value that is present but unparseable is NOT silently treated as
+ * absent: it returns `NaN`, which fails the comparison below and leaves the finding gated by
+ * `problem.severity` alone while `describeSeverity` still prints the raw text, so a malformed
+ * score is visible rather than rounded down to "no security severity" — the absence-as-a-value
+ * shape this repository's gates exist to refuse.
+ */
+function securitySeverity(result, rulesById) {
+  const raw = rulesById.get(result.ruleId)?.properties?.['security-severity'];
+  return raw === undefined || raw === null || raw === '' ? undefined : Number(raw);
+}
+
+/** Whether this finding's CVSS score is at or above the gating floor. */
+function isHighSecurity(result, rulesById) {
+  const score = securitySeverity(result, rulesById);
+  return score !== undefined && Number.isFinite(score) && score >= SECURITY_SEVERITY_FLOOR;
+}
+
 const severityRank = (severity) => SEVERITY_ORDER[severity] ?? 99;
 
 // Composite map key for the per-rule tally; NUL cannot occur in a CodeQL rule id.
 const KEY_SEP = '\u0000';
 
 /**
- * Error-severity findings this repository has assessed and accepted.
+ * Gated findings this repository has assessed and accepted.
  *
  * An entry is NOT a way to quiet a query. Every field is a matcher and all four must hold, so an
  * entry excuses one finding of one rule, in one analysis category, in one file, about one named
@@ -106,7 +146,7 @@ function reportAccepted(accepted) {
     return;
   }
   console.log(
-    `CodeQL: ${accepted.length} error-severity finding(s) ACCEPTED, not gated. Each was assessed ` +
+    `CodeQL: ${accepted.length} gating finding(s) ACCEPTED, not gated. Each was assessed ` +
       `and recorded in scripts/codeql-gate.mjs (ADR-0010); they are listed here so a green gate ` +
       `is never read as "CodeQL found nothing".`,
   );
@@ -219,27 +259,28 @@ function severityOf(result, rulesById) {
   return defaultLevel || 'warning';
 }
 
-function reportAdvisory(counts, perRule) {
-  const advisory = [...counts.entries()].filter(([severity]) => severity !== 'error');
+function reportAdvisory(counts, perRule, scoreByRule) {
+  const advisory = [...counts.entries()];
   if (advisory.length === 0) {
-    console.log('CodeQL: no warning- or note-severity findings either.');
+    console.log('CodeQL: no below-floor findings either.');
     return;
   }
   advisory.sort(([a], [b]) => severityRank(a) - severityRank(b) || a.localeCompare(b));
   const parts = advisory.map(([severity, n]) => `${n} ${severity}`).join(', ');
   console.log(
-    `CodeQL (advisory, NOT gated): ${parts}. These do not affect the exit code — this gate ` +
-      `fails on error-severity only. Listed so a green check is not read as 'nothing found'.`,
+    `CodeQL (advisory, NOT gated): ${parts}. These do not affect the exit code — they are neither ` +
+      `error-severity nor CVSS >= ${SECURITY_SEVERITY_FLOOR}. Listed, with their security ` +
+      `severity where they carry one, so a green check is not read as 'nothing found'.`,
   );
-  const rows = [...perRule.entries()]
-    .map(([key, n]) => [...key.split(KEY_SEP), n])
-    .filter(([severity]) => severity !== 'error');
+  const rows = [...perRule.entries()].map(([key, n]) => [...key.split(KEY_SEP), n]);
   rows.sort(
     ([sevA, ruleA, nA], [sevB, ruleB, nB]) =>
       severityRank(sevA) - severityRank(sevB) || nB - nA || ruleA.localeCompare(ruleB),
   );
   for (const [severity, ruleId, n] of rows) {
-    console.log(`  ${severity.padEnd(9)} ${String(n).padStart(4)}  ${ruleId}`);
+    const score = scoreByRule.get(ruleId);
+    const cvss = score === undefined ? '' : `  CVSS ${score}`;
+    console.log(`  ${severity.padEnd(9)} ${String(n).padStart(4)}  ${ruleId}${cvss}`);
   }
 }
 
@@ -260,11 +301,13 @@ export async function gate(paths, register = ACCEPTED_FINDINGS) {
   }
   const counts = new Map();
   const perRule = new Map();
+  const scoreByRule = new Map();
   const bump = (map, key) => map.set(key, (map.get(key) ?? 0) + 1);
   const matched = new Set();
   const categoriesSeen = new Set();
   const accepted = [];
-  let totalErrors = 0;
+  let totalGated = 0;
+  let gatedBySecurity = 0;
   for (const file of files) {
     const doc = JSON.parse(await readFile(file, 'utf8'));
     for (const run of doc.runs ?? []) {
@@ -283,27 +326,43 @@ export async function gate(paths, register = ACCEPTED_FINDINGS) {
           continue;
         }
         const severity = severityOf(result, rules);
-        bump(counts, severity);
-        bump(perRule, `${severity}${KEY_SEP}${result.ruleId ?? '?'}`);
-        if (!isError(result, rules)) {
+        const score = securitySeverity(result, rules);
+        if (score !== undefined) {
+          scoreByRule.set(result.ruleId ?? '?', String(score));
+        }
+        // Two floors, either of which gates. `problem.severity` grades the query;
+        // `security-severity` grades the weakness. A CVSS 7.8 finding that CodeQL labels
+        // `warning` is a High security alert, and gating on the query grade alone would report it
+        // as advisory and exit 0.
+        const highSecurity = isHighSecurity(result, rules);
+        if (!isError(result, rules) && !highSecurity) {
+          bump(counts, severity);
+          bump(perRule, `${severity}${KEY_SEP}${result.ruleId ?? '?'}`);
           continue;
         }
-        totalErrors += 1;
+        totalGated += 1;
+        if (highSecurity && !isError(result, rules)) {
+          gatedBySecurity += 1;
+        }
         const location = (result.locations ?? [{}])[0]?.physicalLocation ?? {};
         const uri = location.artifactLocation?.uri ?? '?';
         const line = location.region?.startLine ?? '?';
+        const why = highSecurity ? `severity ${severity}, CVSS ${score}` : `severity ${severity}`;
         console.error(
-          `::error file=${uri},line=${line}::[${result.ruleId}] ${result.message?.text ?? ''}`,
+          `::error file=${uri},line=${line}::[${result.ruleId}] (${why}) ` +
+            `${result.message?.text ?? ''}`,
         );
       }
     }
   }
   console.log(
-    `CodeQL: ${totalErrors} gated error-severity finding(s) across ${files.length} SARIF file(s).`,
+    `CodeQL: ${totalGated} gated finding(s) across ${files.length} SARIF file(s) — ` +
+      `error-severity, or CVSS >= ${SECURITY_SEVERITY_FLOOR} (${gatedBySecurity} gated on the ` +
+      `security floor alone).`,
   );
   reportAccepted(accepted);
-  reportAdvisory(counts, perRule);
-  return totalErrors + staleAcceptances(register, matched, categoriesSeen) > 0 ? 1 : 0;
+  reportAdvisory(counts, perRule, scoreByRule);
+  return totalGated + staleAcceptances(register, matched, categoriesSeen) > 0 ? 1 : 0;
 }
 
 const entrypoint = process.argv[1] ? pathToFileURL(resolve(process.argv[1])).href : '';

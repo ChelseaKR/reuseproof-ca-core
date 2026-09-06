@@ -87,6 +87,7 @@ The product never resolves that legal-text tension on its own.
 | [ADR-0009](docs/adr/0009-exact-replay-integrity-validation.md) | Strict exact-input replay validation for the complete reconciled evidence result |
 | [ADR-0010](docs/adr/0010-accepted-codeql-findings-register.md) | Accepted-CodeQL-findings register and a cache-free default branch |
 | [ADR-0011](docs/adr/0011-gates-that-cannot-report-an-empty-check.md) | No gate may report success for a check it did not perform |
+| [ADR-0012](docs/adr/0012-gate-codeql-on-the-weakness-severity.md) | CodeQL gates on the weakness's CVSS score as well as the query's severity |
 | [improvement-plan](docs/plans/improvement-plan.md) | CI failure diagnosis, ranked findings, and what remains blocked |
 
 ## Working principles

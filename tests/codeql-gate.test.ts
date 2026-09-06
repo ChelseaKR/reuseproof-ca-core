@@ -15,8 +15,9 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+// prettier-ignore
 // @ts-expect-error -- plain .mjs helper, deliberately outside the typed `src` project
-import { ACCEPTED_FINDINGS, gate } from '../scripts/codeql-gate.mjs';
+import { ACCEPTED_FINDINGS, SECURITY_SEVERITY_FLOOR, gate } from '../scripts/codeql-gate.mjs';
 
 interface AcceptedFinding {
   ruleId: string;
@@ -29,6 +30,7 @@ interface AcceptedFinding {
 
 const runGate = gate as (paths: string[], register?: AcceptedFinding[]) => Promise<number>;
 const register = ACCEPTED_FINDINGS as AcceptedFinding[];
+const floor = SECURITY_SEVERITY_FLOOR as number;
 
 interface SarifResult {
   ruleId: string;
@@ -274,5 +276,105 @@ describe('the shipped acceptance register', () => {
       expect(entry.ruleId).not.toContain('*');
       expect(entry.messageIncludes).not.toContain('*');
     }
+  });
+});
+
+describe('the security-severity floor', () => {
+  /**
+   * A `problem.severity: warning` rule carrying a CVSS score. This is the exact shape CodeQL
+   * emits for `js/incomplete-url-substring-sanitization` — `security-severity: 7.8` — which
+   * GitHub renders as a High security alert while calling the query itself a warning.
+   */
+  const scored = (score: string): SarifRule => ({
+    id: 'js/incomplete-url-substring-sanitization',
+    properties: { 'problem.severity': 'warning', 'security-severity': score },
+  });
+
+  const finding = (): SarifResult[] => [
+    {
+      ruleId: 'js/incomplete-url-substring-sanitization',
+      level: 'warning',
+      message: { text: 'substring check on a URL' },
+    },
+  ];
+
+  it('fails a warning-severity finding whose CVSS is High', async () => {
+    // The whole point. Before this floor existed the gate exited 0 here and printed
+    // "0 error-severity finding(s)", which a reader takes as "CodeQL found nothing".
+    await writeSarif(dir, 'results.sarif', sarif(finding(), [scored('7.8')]));
+    expect(await runGate([dir])).toBe(1);
+  });
+
+  it('fails exactly at the floor, not only above it', async () => {
+    // The literal, not `String(floor)`: a boundary test written against the constant moves with
+    // it, so raising the floor would keep this green while disarming every case around it.
+    await writeSarif(dir, 'results.sarif', sarif(finding(), [scored('7.0')]));
+    expect(await runGate([dir])).toBe(1);
+  });
+
+  it('passes just below the floor, so the boundary is where it says it is', async () => {
+    await writeSarif(dir, 'results.sarif', sarif(finding(), [scored('6.9')]));
+    expect(await runGate([dir])).toBe(0);
+  });
+
+  it("keeps the floor at GitHub's own high/critical boundary", () => {
+    // Lowering this number is a decision about what the repository ships with. It is never the
+    // way to make a red gate green, and a silent change to it would disarm every case above.
+    expect(floor).toBe(7);
+  });
+
+  it('reports a below-floor finding with its score rather than as an unscored warning', async () => {
+    const logged: string[] = [];
+    vi.spyOn(console, 'log').mockImplementation((...args: unknown[]) => {
+      logged.push(args.join(' '));
+    });
+    await writeSarif(dir, 'results.sarif', sarif(finding(), [scored('6.1')]));
+    expect(await runGate([dir])).toBe(0);
+    expect(logged.join('\n')).toContain('CVSS 6.1');
+  });
+
+  it('does not gate a rule that carries no security severity at all', async () => {
+    // Most CodeQL rules have no CVSS score. Treating a missing score as a high one would fail
+    // every warning in the repository and make the floor meaningless.
+    await writeSarif(
+      dir,
+      'results.sarif',
+      sarif(
+        [{ ruleId: 'x/y', level: 'warning', message: { text: 'meh' } }],
+        [{ id: 'x/y', properties: { 'problem.severity': 'warning' } }],
+      ),
+    );
+    expect(await runGate([dir])).toBe(0);
+  });
+
+  it('does not treat an unparseable score as absent', async () => {
+    // The absence-rendered-as-a-value shape. `Number('high')` is NaN; rounding that down to "no
+    // security severity" would let a malformed score read as a clean one. It stays reported.
+    const logged: string[] = [];
+    vi.spyOn(console, 'log').mockImplementation((...args: unknown[]) => {
+      logged.push(args.join(' '));
+    });
+    await writeSarif(dir, 'results.sarif', sarif(finding(), [scored('high')]));
+    expect(await runGate([dir])).toBe(0);
+    expect(logged.join('\n')).toContain('CVSS NaN');
+  });
+
+  it('gates a High finding whose rule metadata lives in tool.extensions', async () => {
+    // Real CodeQL SARIF leaves `tool.driver.rules` empty. A floor that only reads the driver
+    // would never see a security severity in practice, and would pass every real run.
+    await writeSarif(dir, 'results.sarif', {
+      runs: [
+        {
+          tool: { driver: { name: 'CodeQL', rules: [] }, extensions: [{ rules: [scored('7.5')] }] },
+          results: [
+            {
+              ruleId: 'js/incomplete-url-substring-sanitization',
+              message: { text: 'substring check on a URL' },
+            },
+          ],
+        },
+      ],
+    });
+    expect(await runGate([dir])).toBe(1);
   });
 });
