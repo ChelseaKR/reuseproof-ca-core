@@ -46,7 +46,9 @@ function csvContractInput(
   };
 }
 
-function requiredContractInput(): Record<string, unknown> {
+function requiredContractInput(
+  overrides: Readonly<Record<string, unknown>> = {},
+): Record<string, unknown> {
   return contractInput({
     effectiveRange: {
       start: '2026-01-01T00:00:00.000Z',
@@ -55,6 +57,7 @@ function requiredContractInput(): Record<string, unknown> {
     cadenceMinutes: 30,
     timezone: 'UTC',
     canonicalUnit: 'canonical-unit',
+    ...overrides,
   });
 }
 
@@ -293,4 +296,97 @@ describe('reconcileCsvMeasurementSources', () => {
       reconcileCsvMeasurementSources({ sources: Array.from({ length: 65 }, () => valid) }),
     ).toThrow('1 through 64');
   });
+});
+
+/**
+ * Row-count behaviour of the reconciler.
+ *
+ * `candidateFromOutcome` used to resolve its routed row, its observation and its numeric preimage
+ * with `Array.prototype.find` over arrays whose length is the row count, and to rebuild the
+ * measurement mapping, once per row. That made reconciliation quadratic: 100,000 rows — exactly
+ * `CSV_HARD_LIMITS.maxRecords`, and 4.4 MB against a 10 MiB cap — took 20 minutes, against
+ * NFR-03's 15-minute budget for the whole pipeline (#44).
+ */
+const wideRange = { start: '2026-01-01T00:00:00.000Z', end: '2027-01-01T00:00:00.000Z' };
+
+/** A single source of `rows` accepted rows, each with a distinct identity, instant and value. */
+function manyRowSource(rows: number): CsvMeasurementNormalizationInput {
+  const base = Date.parse(wideRange.start);
+  const lines = [header];
+  for (let row = 0; row < rows; row += 1) {
+    const observedAt = new Date(base + row * 60_000).toISOString();
+    // Distinct value per row, so a mis-joined preimage cannot go unnoticed.
+    lines.push(`r${String(row)},${observedAt},${String(row + 1)},source-unit`);
+  }
+  return sourceInput(lines.join('\n'), {
+    csvContract: csvContractInput({
+      effectiveRange: wideRange,
+      limits: { maxBytes: 10_485_760, maxRecords: 100_000, maxFieldBytes: 100 },
+    }) as unknown as CsvAdapterSourceContract,
+    requiredSeriesContract: requiredContractInput({
+      effectiveRange: wideRange,
+    }) as unknown as RequiredSeriesContract,
+  });
+}
+
+/** Lowest of `repetitions` timings: competing load can only ever add time, never remove it. */
+function fastestReconciliation(rows: number, repetitions: number): number {
+  let fastest = Number.POSITIVE_INFINITY;
+  for (let repetition = 0; repetition < repetitions; repetition += 1) {
+    const source = manyRowSource(rows);
+    const started = performance.now();
+    reconcileCsvMeasurementSources({ sources: [source] });
+    fastest = Math.min(fastest, performance.now() - started);
+  }
+  return fastest;
+}
+
+describe('reconciliation over many rows', () => {
+  it('joins every row to its own observation and numeric preimage', () => {
+    const rows = 200;
+    const result = reconcileCsvMeasurementSources({ sources: [manyRowSource(rows)] });
+
+    expect(result.acceptedIdentityCount).toBe(rows);
+    expect(result.observations).toHaveLength(rows);
+    expect(result.numericObservations).toHaveLength(rows);
+
+    // Per-row joins, not just per-row counts: an index keyed on the wrong field, or an off-by-one
+    // in its construction, would still produce the right number of observations while attaching
+    // the wrong instant and value to each one.
+    const observationsById = new Map(
+      result.observations.map((observation) => [observation.observationId, observation]),
+    );
+    const numericById = new Map(
+      result.numericObservations.map((numeric) => [numeric.observationId, numeric]),
+    );
+    const base = Date.parse(wideRange.start);
+    for (const outcome of result.outcomes) {
+      if (outcome.kind !== 'accepted') {
+        throw new Error(`every row of this source is accepted, got ${outcome.kind}`);
+      }
+      // Record 1 is the header, so data row `n` is record `n + 2`.
+      const row = outcome.canonicalCandidate.recordNumber - 2;
+      const expectedAt = new Date(base + row * 60_000).toISOString();
+      const observation = observationsById.get(outcome.observationId);
+      const numeric = numericById.get(outcome.observationId);
+      expect(observation?.observedAt).toBe(expectedAt);
+      expect(numeric?.observedAt).toBe(expectedAt);
+      expect(numeric?.sourceValue).toBe(String(row + 1));
+    }
+  });
+
+  it('stays linear in the row count rather than rescanning the source per row', () => {
+    // Shape, not wall-clock: a fixed millisecond budget would only measure this machine. Four
+    // times the rows costs about four times the work when the joins are indexed, and about
+    // sixteen when they are scans. Measured on the quadratic implementation this replaces, the
+    // same two sizes gave 9.3x; indexed, they give 4.2x. The bound sits between, with margin on
+    // both sides.
+    //
+    // If this ever fails, the fix is to restore the per-submission index — never to raise the
+    // bound or lengthen the timeout.
+    const small = fastestReconciliation(800, 3);
+    const large = fastestReconciliation(3200, 3);
+
+    expect(large / small).toBeLessThan(6.5);
+  }, 30_000);
 });

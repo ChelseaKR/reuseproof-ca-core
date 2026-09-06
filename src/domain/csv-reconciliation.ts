@@ -1,9 +1,11 @@
 /** Deterministic cross-source reconciliation for governed CSV measurement normalization. */
 
 import { canonicalJson, compareCodeUnits, sha256 } from './canonical.js';
+import { type CsvRowOutcome } from './csv-ingestion.js';
 import {
   createCsvMeasurementMapping,
   normalizeCsvMeasurements,
+  type CsvMeasurementMapping,
   type CsvMeasurementNormalizationInput,
   type CsvMeasurementNormalizationOutcome,
   type CsvMeasurementNormalizationResult,
@@ -143,35 +145,84 @@ function validateGovernance(submissions: readonly NormalizedSubmission[]): void 
   }
 }
 
+type AcceptedRoutingRow = Extract<CsvRowOutcome, { readonly kind: 'accepted' }>;
+
+/**
+ * The per-submission joins `candidateFromOutcome` needs, resolved once instead of once per row.
+ *
+ * Each row used to locate its routed row, its observation and its numeric preimage with
+ * `Array.prototype.find` over arrays whose length is the row count, and to rebuild the measurement
+ * mapping. That made reconciliation O(rows^2): 100,000 rows — exactly `CSV_HARD_LIMITS.maxRecords`,
+ * and well inside the byte cap — took 20 minutes, against NFR-03's 15-minute budget for the whole
+ * pipeline. Every one of those lookups is by a key that is unique within a submission, so one pass
+ * per submission makes each row's joins O(1) (#44).
+ */
+interface SubmissionIndex {
+  readonly mapping: CsvMeasurementMapping;
+  readonly routingByFingerprint: ReadonlyMap<string, AcceptedRoutingRow>;
+  readonly observationById: ReadonlyMap<string, Observation>;
+  readonly numericById: ReadonlyMap<string, NumericObservationValue>;
+}
+
+/**
+ * Index `entries` by `key`, keeping the FIRST entry for a repeated key.
+ *
+ * Iterating in reverse with an unconditional `set` leaves the earliest entry in place, which is
+ * exactly what the `find` calls these maps replace returned. Written this way rather than as a
+ * `has` guard so the builder carries no branch that governed input can never take — the keys are
+ * unique in practice, and a guard's untaken side would be dead weight in the coverage floor while
+ * quietly asserting a tie-break rule nothing exercises.
+ */
+function indexFirstWins<T>(entries: readonly T[], key: (entry: T) => string): Map<string, T> {
+  const index = new Map<string, T>();
+  for (const entry of [...entries].reverse()) {
+    index.set(key(entry), entry);
+  }
+  return index;
+}
+
+function indexSubmission(submission: NormalizedSubmission): SubmissionIndex {
+  const { result } = submission;
+  // Widened first: `routing.outcomes` is a union of the rejected-source empty tuple and the routed
+  // row list, and `filter`'s type predicate does not narrow across that union.
+  const routingOutcomes: readonly CsvRowOutcome[] = result.routing.outcomes;
+  const acceptedRows = routingOutcomes.filter(
+    (row): row is AcceptedRoutingRow => row.kind === 'accepted',
+  );
+  return {
+    // Loop-invariant: this reconstructed and deep-froze an identical mapping object once per row.
+    mapping: createCsvMeasurementMapping(submission.input.mapping),
+    routingByFingerprint: indexFirstWins(acceptedRows, (row) => row.rowFingerprint),
+    observationById: indexFirstWins(
+      result.observations,
+      (observation) => observation.observationId,
+    ),
+    numericById: indexFirstWins(result.numericObservations, (numeric) => numeric.observationId),
+  };
+}
+
 function candidateFromOutcome(
   submission: NormalizedSubmission,
+  index: SubmissionIndex,
   outcome: CsvMeasurementNormalizationOutcome,
 ): InternalCandidate {
   const { result } = submission;
   const routingRow = invariant(
-    result.routing.outcomes.find(
-      (row) => row.kind === 'accepted' && row.rowFingerprint === outcome.rowFingerprint,
-    ),
+    index.routingByFingerprint.get(outcome.rowFingerprint),
     'CSV reconciliation could not join a normalization outcome to its routed row',
   );
-  /* v8 ignore next -- the predicate above narrows this normalized routing outcome. */
-  if (routingRow.kind !== 'accepted') {
-    throw new RangeError('CSV reconciliation routing invariant failed');
-  }
-  const mapping = createCsvMeasurementMapping(submission.input.mapping);
+  const mapping = index.mapping;
   const observation =
     outcome.observationId === null
       ? null
       : invariant(
-          result.observations.find(({ observationId }) => observationId === outcome.observationId),
+          index.observationById.get(outcome.observationId),
           'CSV reconciliation could not join a normalization observation',
         );
   const numeric =
     outcome.kind === 'accepted'
       ? invariant(
-          result.numericObservations.find(
-            ({ observationId }) => observationId === outcome.observationId,
-          ),
+          index.numericById.get(outcome.observationId),
           'CSV reconciliation could not join an accepted numeric preimage',
         )
       : null;
@@ -209,20 +260,20 @@ function candidateFromOutcome(
     semanticHash,
   });
   if (outcome.kind === 'accepted') {
+    // These two were resolved above, under the same keys and with the same failure messages: an
+    // accepted outcome carries a non-null `observationId`, so both joins either produced a value
+    // or already threw. Repeating the lookups here cost two further full scans of the submission
+    // per row and could never be the first to fail.
+    /* v8 ignore next 3 -- unreachable: an accepted outcome resolves both joins above or throws. */
+    if (observation === null || numeric === null) {
+      throw new RangeError('CSV reconciliation accepted preimages are absent');
+    }
     return {
       kind: 'accepted',
       identityHash: outcome.identityHash,
       public: publicCandidate,
-      observation: invariant(
-        result.observations.find(({ observationId }) => observationId === outcome.observationId),
-        'CSV reconciliation observation is absent',
-      ),
-      numeric: invariant(
-        result.numericObservations.find(
-          ({ observationId }) => observationId === outcome.observationId,
-        ),
-        'CSV reconciliation numeric preimage is absent',
-      ),
+      observation,
+      numeric,
     };
   }
   return {
@@ -347,12 +398,18 @@ export function reconcileCsvMeasurementSources(
 
   const groups = new Map<string, InternalCandidate[]>();
   for (const submission of uniqueSubmissions) {
+    // Once per submission, not once per row: see SubmissionIndex (#44).
+    const index = indexSubmission(submission);
     for (const outcome of submission.result.outcomes) {
-      const candidate = candidateFromOutcome(submission, outcome);
-      groups.set(candidate.identityHash, [
-        ...(groups.get(candidate.identityHash) ?? []),
-        candidate,
-      ]);
+      const candidate = candidateFromOutcome(submission, index, outcome);
+      const group = groups.get(candidate.identityHash);
+      // Append in place. Rebuilding the group array on every row copied it afresh per candidate,
+      // which is the same per-row rescan in miniature; order is unchanged.
+      if (group === undefined) {
+        groups.set(candidate.identityHash, [candidate]);
+      } else {
+        group.push(candidate);
+      }
     }
   }
 

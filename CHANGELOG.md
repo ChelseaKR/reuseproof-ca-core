@@ -10,6 +10,17 @@ No version has been tagged yet.
 
 ### Fixed
 
+- CSV reconciliation is linear in the row count rather than quadratic.
+  `candidateFromOutcome` ran once per row and resolved its routed row, its
+  observation and its numeric preimage with `Array.prototype.find` over arrays
+  whose length is the row count — two of those lookups performed twice — while
+  rebuilding the measurement mapping each time. Every key involved is unique
+  within a submission, so the joins are now indexed once per submission and each
+  row costs constant time. Measured on one source: 800 to 3,200 rows cost 9.3x
+  before and 4.2x after, and 3,200 rows fell from 937 ms to 240 ms; the 100,000
+  rows `CSV_HARD_LIMITS.maxRecords` admits took just over 20 minutes before,
+  against NFR-03's 15-minute budget for the whole pipeline. Reconciliation
+  output is unchanged — the demo fixture renders byte-identically (#44).
 - Marker hygiene's empty-scan guard is now per root rather than aggregate.
   `scripts/check-hygiene.mjs` required one file across all roots together, but
   the drift it exists to catch happens to one root at a time: a root that still
