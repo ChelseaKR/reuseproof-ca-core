@@ -8,6 +8,33 @@ No version has been tagged yet.
 
 ## [Unreleased]
 
+### Fixed
+
+- **The weekly full-history secret sweep could not fail on a credential that
+  had been revoked.** `trufflehog.yml` ran `--only-verified`, which reports a
+  finding only when TruffleHog authenticates the credential against the live
+  service. A credential that leaked and was then revoked -- the normal end
+  state of a real incident, and the exact case a history sweep exists to catch
+  -- answers "no", and TruffleHog files that answer under `unverified`. So the
+  sweep was structurally incapable of failing on the thing it exists for.
+
+  This is the same shape as the `version:` drift recorded against F7 in
+  `docs/plans/improvement-plan.md`: a control that reads as enforced and is
+  not. There, the pin claimed a scanner it did not run; here, the tier claimed
+  a sweep it could not fail.
+
+  Measured on a throwaway clone with a real-shaped AWS key planted in one
+  commit and deleted in the next: `--only-verified`, `--results=verified` and
+  `--results=verified,unknown` all exited 0 reporting nothing;
+  `--results=verified,unknown,unverified` exited 183 reporting it. The scan now
+  runs the widened tier. This repository's entire history was re-scanned under
+  it first, with trufflehog 3.97.1, and reported nothing across 463 chunks --
+  so no detector had to be excluded and no allowlist was added.
+
+  `tests/secret-scan-tiers.test.ts` fails if any lane drops the `unverified`
+  tier, reintroduces `--only-verified`, loses `fetch-depth: 0` or `path: ./`,
+  or lets the pinned ref and the `version:` input name different releases.
+
 ### Added
 
 - **`reuseproof-verify`, the on-disk bundle check as a command.**
