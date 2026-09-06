@@ -4,7 +4,13 @@ export default defineConfig({
   test: {
     coverage: {
       provider: 'v8',
-      include: ['src/**/*.ts'],
+      // `scripts/verify.ts` is the shipped `reuseproof-verify` command, not a dev
+      // script: `package.json` `bin` points a consumer at it. A published surface
+      // outside the coverage scope is a floor that cannot fail, so it is named
+      // here. `scripts/demo.ts` stays out on purpose: `npm run demo:check` runs it
+      // as a subprocess, which this provider does not follow, so including it would
+      // report 0% for code that does run.
+      include: ['src/**/*.ts', 'scripts/verify.ts'],
       reporter: ['text', 'json-summary'],
       thresholds: {
         perFile: true,
