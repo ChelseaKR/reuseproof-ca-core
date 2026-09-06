@@ -608,3 +608,87 @@ describe('typed routing and deterministic selection', () => {
     expect(evaluate([decomposed, composed])).toEqual(evaluate([composed, decomposed]));
   });
 });
+
+/**
+ * Interval-count behaviour of the observation-to-interval join.
+ *
+ * `containingInterval` used to scan the whole interval list for every observation, re-parsing both
+ * bounds of each interval it rejected. That made the join O(observations x intervals), and
+ * `MAX_EXPECTED_INTERVALS` permits 200,000 intervals with no ceiling on observations at all — a
+ * single required series at hourly cadence over one calendar year is already 8,760 intervals (#42).
+ */
+const scaleStart = Date.parse('2026-01-01T00:00:00.000Z');
+
+/** One minute-cadence interval per observation, each observation inside its own interval. */
+function minuteCadenceEvaluation(intervals: number): Parameters<typeof evaluateCoverage>[0] {
+  const range = {
+    start: '2026-01-01T00:00:00.000Z',
+    end: new Date(scaleStart + intervals * 60_000).toISOString(),
+  };
+  const observations = [];
+  for (let index = 0; index < intervals; index += 1) {
+    observations.push(
+      createObservation(
+        observationInput(
+          `observation-${String(index)}`,
+          new Date(scaleStart + index * 60_000 + 1_000).toISOString(),
+        ),
+      ),
+    );
+  }
+  return {
+    contract: createRequiredSeriesContract(
+      contractInput({ effectiveRange: range, cadenceMinutes: 1, timezone: 'UTC' }),
+    ),
+    reportRange: createTimeRange(range),
+    lifecycleState: 'in_service',
+    observations,
+    scheduledNonoperations: [],
+  };
+}
+
+/** Lowest of `repetitions` timings: competing load can only ever add time, never remove it. */
+function fastestEvaluation(intervals: number, repetitions: number): number {
+  let fastest = Number.POSITIVE_INFINITY;
+  for (let repetition = 0; repetition < repetitions; repetition += 1) {
+    const input = minuteCadenceEvaluation(intervals);
+    const started = performance.now();
+    evaluateCoverage(input);
+    fastest = Math.min(fastest, performance.now() - started);
+  }
+  return fastest;
+}
+
+describe('coverage evaluation over many intervals', () => {
+  it('routes every observation to its own interval at scale', () => {
+    const intervals = 2_000;
+    const summary = evaluateCoverage(minuteCadenceEvaluation(intervals));
+
+    expect(summary.expectedCount).toBe(intervals);
+    expect(summary.acceptedCount).toBe(intervals);
+    expect(summary.gapCount).toBe(0);
+    expect(summary.quarantineCount).toBe(0);
+    // Each observation falls in a distinct interval, so none may be quarantined as outside the
+    // expected range and none may collide: a mis-aimed search would show up here as a lost or
+    // doubled interval rather than as a wrong total.
+    expect(summary.outcomes.filter((outcome) => outcome.kind === 'accepted')).toHaveLength(
+      intervals,
+    );
+    expect(new Set(summary.outcomes.map((outcome) => outcome.kind))).toEqual(new Set(['accepted']));
+  });
+
+  it('stays near-linear in the interval count rather than scanning the list per observation', () => {
+    // Shape, not wall-clock: a fixed millisecond budget would only measure this machine. Four
+    // times the intervals — with four times the observations — costs about four times the work
+    // when the join is a binary search, and about sixteen when it is a scan. Measured on the
+    // quadratic implementation this replaces, these two sizes gave 15.2x; indexed, they give
+    // 4.3x. The bound sits between, with margin on both sides.
+    //
+    // If this ever fails, the fix is to restore the index — never to raise the bound or
+    // lengthen the timeout.
+    const small = fastestEvaluation(1_000, 3);
+    const large = fastestEvaluation(4_000, 3);
+
+    expect(large / small).toBeLessThan(7);
+  }, 60_000);
+});

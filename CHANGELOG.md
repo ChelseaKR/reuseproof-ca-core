@@ -10,6 +10,20 @@ No version has been tagged yet.
 
 ### Fixed
 
+- Coverage evaluation resolves observations to intervals by binary search rather
+  than by scanning the whole interval list per observation. `containingInterval`
+  was called once per observation and re-parsed both RFC 3339 bounds of every
+  interval it rejected, making the join O(observations x intervals) — and
+  `MAX_EXPECTED_INTERVALS` permits 200,000 intervals with no ceiling on
+  observations. The candidate intervals tile their range, so sorted by start
+  they are disjoint and ascending and at most one can contain a given instant;
+  that invariant is now checked while the index is built rather than assumed.
+  `applicableNonoperation` no longer copies, re-sorts and re-parses the
+  nonoperation list once per expected interval either. Measured, one required
+  series at minute cadence with one observation per interval: 8,000 intervals
+  fell from 46.1 s to 93 ms, and 1,000 to 4,000 intervals cost 15.2x before
+  against 4.3x after. `CoverageSummary` output is unchanged — the demo fixture
+  renders byte-identically (#42).
 - CSV reconciliation is linear in the row count rather than quadratic.
   `candidateFromOutcome` ran once per row and resolved its routed row, its
   observation and its numeric preimage with `Array.prototype.find` over arrays

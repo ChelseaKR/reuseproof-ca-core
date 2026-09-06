@@ -455,33 +455,128 @@ function buildCoverageIntervals(
   });
 }
 
+/** A scheduled nonoperation with its bounds parsed once, in `nonoperationId` order. */
+interface IndexedNonoperation {
+  readonly nonoperation: ScheduledNonoperation;
+  readonly authorizedAt: number;
+  readonly start: number;
+  readonly end: number;
+}
+
+/**
+ * Sort and parse the nonoperation list once for the whole evaluation.
+ *
+ * `applicableNonoperation` used to copy and re-sort this list, and re-parse three RFC 3339 strings
+ * per candidate, once per expected interval. The order is `nonoperationId` either way, so the
+ * selected nonoperation is unchanged (#42).
+ */
+function indexNonoperations(
+  nonoperations: readonly ScheduledNonoperation[],
+): readonly IndexedNonoperation[] {
+  return [...nonoperations]
+    .sort((left, right) => compareCodeUnits(left.nonoperationId, right.nonoperationId))
+    .map((nonoperation) => ({
+      nonoperation,
+      authorizedAt: instantMilliseconds(nonoperation.authorizedAt),
+      start: instantMilliseconds(nonoperation.range.start),
+      end: instantMilliseconds(nonoperation.range.end),
+    }));
+}
+
 function applicableNonoperation(
   contractId: string,
   interval: ExpectedInterval,
-  nonoperations: readonly ScheduledNonoperation[],
+  nonoperations: readonly IndexedNonoperation[],
 ): ScheduledNonoperation | undefined {
   const intervalStart = instantMilliseconds(interval.start);
   const intervalEnd = instantMilliseconds(interval.end);
-  return [...nonoperations]
-    .sort((left, right) => compareCodeUnits(left.nonoperationId, right.nonoperationId))
-    .find(
-      (candidate) =>
-        candidate.contractId === contractId &&
-        instantMilliseconds(candidate.authorizedAt) <= intervalStart &&
-        instantMilliseconds(candidate.range.start) <= intervalStart &&
-        instantMilliseconds(candidate.range.end) >= intervalEnd,
-    );
+  return nonoperations.find(
+    (candidate) =>
+      candidate.nonoperation.contractId === contractId &&
+      candidate.authorizedAt <= intervalStart &&
+      candidate.start <= intervalStart &&
+      candidate.end >= intervalEnd,
+  )?.nonoperation;
+}
+
+/**
+ * The candidate intervals with their bounds parsed once, for binary search.
+ *
+ * Resolving an observation to its interval was a linear scan of the whole interval list, run once
+ * per observation, with `instantMilliseconds` re-parsing both bounds of every interval it rejected
+ * — an ISO regex, a `Date.parse` and a `toISOString` round-trip each time. That made the join
+ * O(observations x intervals): 8,000 observations against 8,000 intervals took 72 seconds, and
+ * `MAX_EXPECTED_INTERVALS` permits 200,000 (#42).
+ *
+ * `starts` and `ends` are typed arrays so the search reads plain numbers with no per-element
+ * undefined check to widen the branch surface.
+ */
+interface IntervalIndex {
+  readonly intervals: readonly ExpectedInterval[];
+  readonly starts: Float64Array;
+  readonly ends: Float64Array;
+}
+
+function indexIntervals(intervals: readonly ExpectedInterval[]): IntervalIndex {
+  const starts = new Float64Array(intervals.length);
+  const ends = new Float64Array(intervals.length);
+  let position = 0;
+  let previousEnd = Number.NEGATIVE_INFINITY;
+  for (const interval of intervals) {
+    const start = instantMilliseconds(interval.start);
+    // The binary search below relies on this: the coverage intervals tile their range, so sorted
+    // by start they are also disjoint and ascending, and at most one can contain a given instant.
+    // Both builders produce that shape — `buildCadenceIntervals` walks a cursor forward, and
+    // `buildTimelineIntervals` only subdivides those cadence intervals at lifecycle boundaries —
+    // so this cannot fire today. It is checked rather than assumed because a future builder that
+    // broke the invariant would otherwise silently change which interval an observation lands in.
+    /* v8 ignore next 3 -- unreachable: coverage intervals tile their range and cannot overlap. */
+    if (start < previousEnd) {
+      throw new RangeError('coverage intervals must not overlap');
+    }
+    const end = instantMilliseconds(interval.end);
+    starts[position] = start;
+    ends[position] = end;
+    previousEnd = end;
+    position += 1;
+  }
+  return { intervals, starts, ends };
+}
+
+/**
+ * Read one parsed bound out of the parallel arrays.
+ *
+ * `noUncheckedIndexedAccess` widens every indexed read to `| undefined`, and the binary search
+ * below only ever forms in-range indices. `Number` keeps that widening out of the search without
+ * adding a guard that no input could take — an unreachable guard would sit in the branch coverage
+ * floor asserting nothing.
+ */
+function boundAt(series: Float64Array, position: number): number {
+  return Number(series[position]);
 }
 
 function containingInterval(
   observedAt: string,
-  intervals: readonly ExpectedInterval[],
+  index: IntervalIndex,
 ): ExpectedInterval | undefined {
   const instant = instantMilliseconds(observedAt);
-  return intervals.find(
-    (interval) =>
-      instantMilliseconds(interval.start) <= instant && instant < instantMilliseconds(interval.end),
-  );
+  // The last interval starting at or before `instant` is the only one that can contain it.
+  let low = 0;
+  let high = index.starts.length - 1;
+  let match = -1;
+  while (low <= high) {
+    const middle = (low + high) >>> 1;
+    if (boundAt(index.starts, middle) <= instant) {
+      match = middle;
+      low = middle + 1;
+    } else {
+      high = middle - 1;
+    }
+  }
+  if (match < 0 || instant >= boundAt(index.ends, match)) {
+    return undefined;
+  }
+  return index.intervals[match];
 }
 
 /** Evaluate exactly one required series without consulting its vendor mapping. */
@@ -516,11 +611,13 @@ export function evaluateCoverage(input: CoverageEvaluationInput): CoverageSummar
   );
   const excludedById = new Map<string, ExcludedInterval>();
   const expectedIntervals: ExpectedInterval[] = [];
+  // Sorted and parsed once, not once per expected interval (#42).
+  const indexedNonoperations = indexNonoperations(evaluation.scheduledNonoperations);
   for (const interval of coverageIntervals.expected) {
     const nonoperation = applicableNonoperation(
       evaluation.contract.contractId,
       interval,
-      evaluation.scheduledNonoperations,
+      indexedNonoperations,
     );
     if (nonoperation === undefined) {
       expectedIntervals.push(interval);
@@ -532,10 +629,11 @@ export function evaluateCoverage(input: CoverageEvaluationInput): CoverageSummar
       });
     }
   }
-  const candidateIntervals = [
-    ...coverageIntervals.expected,
-    ...coverageIntervals.lifecycleExcluded,
-  ].sort((left, right) => compareCodeUnits(left.start, right.start));
+  const candidateIntervals = indexIntervals(
+    [...coverageIntervals.expected, ...coverageIntervals.lifecycleExcluded].sort((left, right) =>
+      compareCodeUnits(left.start, right.start),
+    ),
+  );
 
   const finalAcceptedByInterval = new Map<string, Observation[]>();
   const seenFinalFingerprints = new Set<string>();
