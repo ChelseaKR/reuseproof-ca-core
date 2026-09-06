@@ -31,3 +31,43 @@ updates:
     groups:
       github-actions:
         patterns: ['*']
+    # `release.yml` pins a reusable workflow from ChelseaKR/portfolio-standards,
+    # a *private* repository. Dependabot's repo-scoped credentials cannot read
+    # it: the proxy logs `403 ... Either the repo doesn't exist, or Dependabot
+    # doesn't have access to it`, the updater records
+    # `git_dependencies_not_reachable` for that one dependency, and a single
+    # recorded error fails the entire run even though every other action was
+    # checked and its pull requests were opened.
+    #
+    # Two sibling repositories have already demonstrated exactly that and fixed
+    # it exactly this way: ChelseaKR/ceqa-preflight (weekly `github_actions` job
+    # red on 2026-08-01, 08-08, 08-15, 08-22 while its `pip` job stayed green)
+    # and ChelseaKR/obligation-receipts (red on 2026-07-24, 07-31, 08-07, 08-14,
+    # 08-21). This repository carries the byte-identical pin, so it is exposed
+    # to the byte-identical failure. Dependabot updater runs are not surfaced
+    # through the Actions API, so confirm the before/after state under
+    # Insights > Dependency graph > Dependabot rather than in the Actions tab.
+    #
+    # An `ignore` entry carrying only `dependency-name`, with no `versions` and
+    # no `update-types`, means "every version". Dependabot drops such a
+    # dependency in `Job#allowed_update?` before it builds an update checker, so
+    # the unreachable fetch never happens, no error is recorded, and the run
+    # exits 0.
+    #
+    # What this trades away: this single pin is no longer bumped automatically.
+    # It must be bumped by hand whenever portfolio-standards moves the
+    # release-authorize workflow, and this entry and the `uses:` line in
+    # `release.yml` must be kept in step -- if they drift apart the weekly
+    # failure returns silently.
+    #
+    # To restore automatic updates instead, give Dependabot a credential that
+    # can read portfolio-standards: store a fine-grained PAT with read access to
+    # that repository as a *Dependabot* secret (that store is separate from the
+    # Actions secret store), add a top-level `registries:` block of `type: git`
+    # against https://github.com with `username: x-access-token` and that secret
+    # as the password, reference the registry from this update entry, and delete
+    # this `ignore` block. The organization-level "Grant Dependabot access to
+    # private repositories" setting is not an option here: it exists only for
+    # organizations, and both repositories are owned by a personal account.
+    ignore:
+      - dependency-name: 'ChelseaKR/portfolio-standards/.github/workflows/release-authorize.yml'
