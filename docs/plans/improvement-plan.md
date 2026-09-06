@@ -161,11 +161,24 @@ exited 0 having scanned nothing would be a false green, and nothing here would
 notice — the job asserts the scanner's exit code and nothing about its
 `{"chunks": N}` line.
 
-Not built. The defence already in place is the right one: `version: '3.96.0'`
+Not built. The defence already in place is the right one: the `version:` input
 pins what actually runs, added in #29 precisely because SHA-pinning the action
 does not pin the container it launches. Building a chunk-count assertion against
 a failure mode that has not occurred would add machinery on speculation.
 Recorded so a future reader knows it was considered.
+
+> **Superseded in part, 2026-09-06.** "The defence already in place" had already
+> stopped defending when this paragraph was written and nothing said so.
+> Dependabot moved the action SHA to v3.97.0 (#35, 2026-08-29) and then v3.97.1
+> (#47) while the `version:` input stayed at `'3.96.0'` — it cannot see the
+> input — so for eight days the weekly full-history sweep carried a pin that
+> claimed 3.97.1 and ran the 3.96.0 image. No diff, no annotation, and no check
+> anywhere reported the gap, which is F2's defect in a different place: the
+> statement that a gate is enforced outliving the enforcement. The input is now
+> `'3.97.1'`, and `scripts/check-workflow-pins.mjs` in `make verify` holds the
+> two together, along with the SHA-pin requirement and the rule that one action
+> resolves to one release across every workflow. Its own three empty-scan floors
+> follow ADR-0011.
 
 ### F8 — `codeql.yml` and `trufflehog.yml` run on `ubuntu-latest` (observation)
 

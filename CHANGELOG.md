@@ -8,6 +8,31 @@ No version has been tagged yet.
 
 ## [Unreleased]
 
+### Security
+
+- The weekly full-history secret sweep runs the scanner its pin names. The
+  TruffleHog action's `version:` input selects the container image that actually
+  scans — SHA-pinning the `uses:` line does not — and Dependabot cannot see that
+  input. It bumped the action SHA to v3.97.0 and then to v3.97.1 while the input
+  stayed at `'3.96.0'`, so the sweep claimed 3.97.1 in its pin and ran 3.96.0,
+  with no diff, no annotation and nothing anywhere reporting the gap. The input
+  is now `'3.97.1'`.
+
+### Added
+
+- `scripts/check-workflow-pins.mjs`, in `make verify` as `npm run check:pins`,
+  so that gap cannot reopen silently. It holds three properties across
+  `.github/workflows`: every `uses:` is pinned to a full commit SHA and carries
+  a reviewable version comment; an action used in several places resolves to one
+  SHA and one version everywhere; and an action whose runtime is selected by an
+  input has that input equal to the version its SHA is pinned at. Per ADR-0011
+  it fails closed at three empty-scan floors — an unreadable workflow directory,
+  a directory with no workflow document, and documents carrying no `uses:`
+  reference — rather than reporting a clean scan it did not perform. A reusable
+  workflow is exempt from the version-comment rule only, because it is selected
+  by commit and publishes no version to name; the SHA requirement still applies
+  to it.
+
 ### Fixed
 
 - Coverage evaluation resolves observations to intervals by binary search rather

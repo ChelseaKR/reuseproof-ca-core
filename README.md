@@ -10,7 +10,7 @@ Run the synthetic local slice (everything is local; no credentials, no network w
 
 ```sh
 npm ci          # install pinned dependencies
-make verify     # format check + lint + typecheck + tests with coverage + build + demo + audit + hygiene (CI parity)
+make verify     # format check + lint + typecheck + tests with coverage + build + demo + audit + hygiene + workflow pins (CI parity)
 npm run demo    # synthetic exact CSV → reconciliation → coverage/winner aggregation → receipt → frozen draft
 ```
 
@@ -164,7 +164,7 @@ standards. Applicability and current state:
 |---|---|---|
 | Responsible-Tech Framework | Applies | Applies — governance, claims and safety-case posture in [07-GOVERNANCE-LEGAL-SAFETY](docs/07-GOVERNANCE-LEGAL-SAFETY.md) and the Working principles above |
 | Code Quality | Applies | Applies — Prettier + ESLint (zero warnings) + strict `tsc` + Vitest + demo execution + marker hygiene, all in `make verify`; no gate may report success for a check it did not perform ([ADR-0011](docs/adr/0011-gates-that-cannot-report-an-empty-check.md)) |
-| Security & Supply-Chain | Applies | Applies — SHA-pinned Actions, CodeQL, TruffleHog weekly full-history sweep, gitleaks pre-commit, `npm audit` in the merge gate, Dependabot; threat model in [06-SECURITY-PRIVACY-THREAT-MODEL](docs/06-SECURITY-PRIVACY-THREAT-MODEL.md) |
+| Security & Supply-Chain | Applies | Applies — SHA-pinned Actions (enforced by `npm run check:pins`, which also holds the TruffleHog `version:` input to the version its SHA is pinned at), CodeQL, TruffleHog weekly full-history sweep, gitleaks pre-commit, `npm audit` in the merge gate, Dependabot; threat model in [06-SECURITY-PRIVACY-THREAT-MODEL](docs/06-SECURITY-PRIVACY-THREAT-MODEL.md) |
 | CI/CD | Applies | Partly — `ci.yml` runs the literal `make verify` merge gate, with scoped permissions and concurrency on every workflow. **Gap:** the `codeql` jobs are not required status checks on `main`, so a CodeQL failure does not block a merge; see F1 in [docs/plans/improvement-plan.md](docs/plans/improvement-plan.md) |
 | Observability | Applies | Applies at library tier — deterministic, content-addressed artifacts and explicit outcome taxonomies are the current observability surface; SLOs/runbooks planned in [10-OPERATIONS-SRE](docs/10-OPERATIONS-SRE.md) for the hosted app |
 | Accessibility | N/A — current shipped slice is a TypeScript library/demo with no human-facing HTML; re-enters scope when the planned web app ships | Deterministic report HTML is built script-free with accessibility in mind ([08-ACCESSIBILITY-I18N](docs/08-ACCESSIBILITY-I18N.md)); full WCAG gates arrive with the web app |
