@@ -1,4 +1,5 @@
-# Scheduled full-history verified-secret scan. gitleaks runs at commit time via
+# Scheduled full-history secret scan, over every result tier TruffleHog
+# reports. gitleaks runs at commit time via
 # .pre-commit-config.yaml; this is the periodic sweep of the *entire* commit
 # history with a different engine and its own detector set, catching anything a
 # diff-scoped scan by construction cannot (a secret introduced and later removed
@@ -19,7 +20,7 @@ concurrency:
 
 jobs:
   scan:
-    name: full-history secret scan (verified only)
+    name: full-history secret scan (all result tiers)
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -32,7 +33,7 @@ jobs:
         with:
           fetch-depth: 0 # full clone — this is a whole-history scan, not a diff
           persist-credentials: false
-      - name: TruffleHog (verified secrets only)
+      - name: TruffleHog (full history, all result tiers)
         uses: trufflesecurity/trufflehog@20652fbbdefffcdaa493a5bf57ab2ac6b1db715b # v3.97.1
         with:
           path: ./
@@ -49,4 +50,29 @@ jobs:
           # `--fail` is not passed. The action's own command already includes it
           # and repeating a flag is a hard CLI error, so this scan exited 1 at
           # startup having read nothing: no chunk count, no findings, no coverage.
-          extra_args: --only-verified
+          #
+          # The tier list is load-bearing. `--only-verified` reports a finding
+          # only when TruffleHog asked the provider and the provider said the
+          # credential is live. A credential that leaked and was then REVOKED --
+          # the normal end state of a real incident, and the exact case a
+          # scheduled full-history sweep exists to catch -- answers "no", which
+          # TruffleHog files under `unverified`. So the setting this job ran
+          # with until 2026-09-06 could not fail on the thing it exists for,
+          # and reported success either way.
+          #
+          # Measured 2026-09-06 on a throwaway clone with a real-shaped AWS key
+          # planted in one commit and deleted in the next (confirmed present in
+          # history and absent at HEAD first, or the test measures a diff scan
+          # rather than a history scan):
+          #
+          #   --only-verified                        exit 0,   0 reported
+          #   --results=verified                     exit 0,   0 reported
+          #   --results=verified,unknown             exit 0,   0 reported
+          #   --results=verified,unknown,unverified  exit 183, unverified_secrets: 1
+          #
+          # This repository's whole history was re-scanned under the widened
+          # tier on 2026-09-06 with trufflehog 3.97.1 and reported nothing, so
+          # widening costs no false positives here and no detector had to be
+          # excluded. If a placeholder fixture ever does fire, exclude that
+          # DETECTOR by name and never narrow the tier back.
+          extra_args: --results=verified,unknown,unverified
