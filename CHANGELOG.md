@@ -10,6 +10,22 @@ No version has been tagged yet.
 
 ### Security
 
+- The CodeQL gate fails on a High security finding, not only on an
+  error-severity query. CodeQL carries two severities per rule and they measure
+  different things: `problem.severity` grades the query, `security-severity` is
+  the CVSS score of the weakness. `js/incomplete-url-substring-sanitization` is
+  `problem.severity: warning` carrying `security-severity: 7.8`, which GitHub
+  renders as a **High** alert — and the gate printed it as advisory and exited 0
+  under a line reading `0 error-severity finding(s)`, which a reader takes as
+  "CodeQL found nothing". The floor is now two-sided: error-severity, or CVSS at
+  or above 7.0, GitHub's own high/critical boundary. A missing score is still
+  not a low score, an unparseable score is not a missing one (it stays gated by
+  `problem.severity` and is printed as it was found rather than rounded down),
+  and below-floor findings are now listed with their CVSS score so an advisory
+  is locatable. See [ADR-0012](docs/adr/0012-gate-codeql-on-the-weakness-severity.md).
+
+### Security
+
 - The weekly full-history secret sweep runs the scanner its pin names. The
   TruffleHog action's `version:` input selects the container image that actually
   scans — SHA-pinning the `uses:` line does not — and Dependabot cannot see that
