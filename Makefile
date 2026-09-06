@@ -10,3 +10,4 @@ verify:
 	npm run demo:check
 	npm audit --audit-level=high
 	npm run hygiene
+	npm run check:pins

@@ -12,8 +12,9 @@ A change is mergeable only when the single repository gate, `make verify`, passe
 4. Vitest branch coverage, including the 95% per-file safety-core floor;
 5. a production build;
 6. execution of the documented demo against the shipped synthetic fixture;
-7. a blocking high-severity `npm audit`; and
-8. source-marker hygiene.
+7. a blocking high-severity `npm audit`;
+8. source-marker hygiene; and
+9. workflow action pins, including that an action whose runtime image is selected by an input has that input equal to the version its SHA is pinned at.
 
 The CI workflow may set up the pinned runtime and cache, but it calls only `make verify` for repository validation so CI and local behavior cannot drift.
 
