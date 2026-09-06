@@ -11,3 +11,4 @@ verify:
 	npm audit --audit-level=high
 	npm run hygiene
 	npm run check:pins
+	npm run check:concurrency
