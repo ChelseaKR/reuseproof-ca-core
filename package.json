@@ -4,6 +4,9 @@
   "private": false,
   "description": "Read-only evidence-domain foundation for ReuseProof CA.",
   "type": "module",
+  "bin": {
+    "reuseproof-verify": "bin/reuseproof-verify.js"
+  },
   "engines": {
     "node": ">=22.13.0"
   },
@@ -25,7 +28,8 @@
     "lint": "eslint . --max-warnings 0",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "verify:cli": "npm run build --silent && node bin/reuseproof-verify.js"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",

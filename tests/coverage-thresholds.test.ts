@@ -18,7 +18,7 @@
  * exempting those files), and a key shape this guard cannot interpret (which must fail rather
  * than be skipped — a guard that silently stops checking is the thing it exists to prevent).
  */
-import { readdir } from 'node:fs/promises';
+import { readFile, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
@@ -180,10 +180,32 @@ describe('the safety core keeps its stated 95% floor', () => {
     }
   });
 
-  it('measures coverage over src, which is where the safety core lives', () => {
+  it('measures coverage over src and over every command this package ships', async () => {
+    // `src` is where the safety core lives, and it was the whole scope until a
+    // command shipped. A published `bin` outside the coverage scope is a floor
+    // that cannot fail, so the required set is derived from `package.json` here
+    // rather than restated: a second command added without a coverage entry
+    // fails this test instead of shipping unmeasured.
     const coverage = config.test?.coverage;
     const include = coverage !== undefined && 'include' in coverage ? coverage.include : undefined;
-    expect(include).toEqual(['src/**/*.ts']);
+    const manifest = JSON.parse(
+      await readFile(new URL('../package.json', import.meta.url), 'utf8'),
+    ) as { bin?: Record<string, string> };
+    const shipped = Object.values(manifest.bin ?? {});
+    const sources: string[] = [];
+    for (const relative of shipped) {
+      const shim = await readFile(new URL(`../${relative}`, import.meta.url), 'utf8');
+      const built = /from '\.\.\/dist\/(?<source>[^']+)\.js'/.exec(shim)?.groups?.source;
+      if (built === undefined) {
+        throw new Error(`${relative} does not import a built module, so its source is unknown`);
+      }
+      sources.push(`${built}.ts`);
+    }
+
+    expect(shipped).not.toHaveLength(0);
+    expect(Array.isArray(include) ? [...include].sort() : include).toEqual(
+      ['src/**/*.ts', ...sources].sort(),
+    );
   });
 
   it('enforces thresholds per file, not as a repository-wide average', () => {

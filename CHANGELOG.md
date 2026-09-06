@@ -8,6 +8,53 @@ No version has been tagged yet.
 
 ## [Unreleased]
 
+### Added
+
+- **`reuseproof-verify`, the on-disk bundle check as a command.**
+  `verifyFrozenReportBundleAtPath` could re-verify a written bundle from disk
+  alone, and only a TypeScript caller could reach it. A records clerk, a State
+  Board reader, or a jurisdiction auditor holding an independently recorded
+  snapshot ID had no way to use it. `bin/reuseproof-verify.js`, built from
+  `scripts/verify.ts`, is that boundary: it prints each artifact's filename,
+  byte length and digest, the snapshot ID, the receipt-core hash, the report
+  content hash and version, and every limitation the verification carries.
+  `--json` emits the `VerifiedFrozenReportBundle`, or the refusal.
+
+  `--expect-snapshot` is required, and that is the point. The bundle is
+  deliberately unsigned, so anyone holding this tool can regenerate a wholly
+  self-consistent one; omitting the recorded ID is a usage error, and
+  `--print-only` prints the bundle's own identifiers while still exiting
+  non-zero, so a comparison that was never made cannot be read as one that
+  passed.
+
+  A refusal is never a partial verification. Nothing reaches standard output
+  until every check has passed; a refusal writes one machine-readable line to
+  standard error and returns its own exit code. Every
+  `FrozenBundleRejectionReason` has a distinct code, declared as a total record
+  over the union so a reason added to the library fails to compile rather than
+  falling into a default that would report it as some other failure, and
+  `tests/verify-cli.test.ts` holds the README's exit-code table against the
+  codes the command actually returns.
+
+  The manifest the command prints is read back from `report-freeze.json` after
+  verification, and that second read is anchored rather than trusted: the
+  snapshot ID is derived from that file's own bytes, so it must equal the one
+  verification returned. A bundle edited between the two reads exits 6 instead
+  of being printed as verified.
+
+### Changed
+
+- The coverage scope now covers every command this package ships.
+  `vitest.config.ts` measured `src/**/*.ts` only, which was the whole of the
+  package until a `bin` existed; a published surface outside the coverage scope
+  is a floor that cannot fail. `scripts/verify.ts` is named there, and
+  `tests/coverage-thresholds.test.ts` derives the required set from
+  `package.json`'s `bin` and the module each shim imports, so a second command
+  added without a coverage entry fails the suite instead of shipping
+  unmeasured. `scripts/demo.ts` stays out deliberately: `npm run demo:check`
+  runs it as a subprocess, which this provider does not follow, so including it
+  would report 0% for code that does run.
+
 ### Security
 
 - The CodeQL gate fails on a High security finding, not only on an

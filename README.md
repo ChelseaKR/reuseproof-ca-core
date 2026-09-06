@@ -16,6 +16,57 @@ npm run demo    # synthetic exact CSV → reconciliation → coverage/winner agg
 
 What the demo exercises — and the deliberate limits of the local slice — are described under [Implementation status](#implementation-status). `make verify` runs the demo too, so the quickstart above cannot rot while the merge gate stays green.
 
+### Verifying a bundle you were handed
+
+`reuseproof-verify` checks that every byte of one frozen bundle still satisfies the render
+manifest that governs it. It reads only the directory you name: no network, no clock, no
+signature.
+
+```sh
+npm run build
+node bin/reuseproof-verify.js path/to/bundle --expect-snapshot rpf1-<hex>
+node bin/reuseproof-verify.js path/to/bundle --expect-snapshot rpf1-<hex> --json
+node bin/reuseproof-verify.js path/to/bundle --print-only
+```
+
+`--expect-snapshot` is required, and that is the point. The bundle is deliberately unsigned,
+so anyone holding this tool can regenerate a wholly self-consistent one; a bundle that
+verifies against itself is evidence of nothing. The snapshot ID you recorded independently
+when the bundle was issued is what makes the check mean something, and the command refuses
+to run without it. `--print-only` prints the bundle's own identifiers and **still exits
+non-zero**, so a comparison that was never made cannot be read as one that passed.
+
+Nothing reaches standard output until every check has passed, so there is no partial result
+to mistake for a verified one. A refusal writes one machine-readable line to standard error
+(`reason=... exit=... bundle=... detail=...`) and returns its own exit code:
+
+| Exit | Reason | Meaning |
+|---|---|---|
+| 0 | verified | Every byte matched, and the snapshot ID matched the one you recorded. |
+| 2 | `usage` | The command line was not usable, including omitting both `--expect-snapshot` and `--print-only`. |
+| 3 | `snapshot_id_mismatch` | The bundle is internally consistent and is not the bundle you recorded. |
+| 4 | `not_compared` | `--print-only`: checked against itself and against nothing else. |
+| 5 | `internal_error` | Something failed that this tool does not model. Never a pass. |
+| 6 | `bundle_changed_during_read` | The bundle changed on disk between verification and reading its manifest back. |
+| 10 | `bundle_directory_unreadable` | The directory could not be inspected or listed. |
+| 11 | `bundle_entry_not_a_regular_file` | An entry is a link, a directory, or a device. |
+| 12 | `bundle_file_missing` | A file the bundle must carry is absent. |
+| 13 | `bundle_file_unreadable` | A file could not be read. |
+| 14 | `bundle_path_not_a_directory` | The path is not a real directory. |
+| 15 | `canonical_form_mismatch` | A control file is not in its canonical form. |
+| 16 | `control_file_shape_invalid` | A control file does not carry exactly the fields it must. |
+| 17 | `control_file_version_unsupported` | A control file declares a schema this tool does not read. |
+| 18 | `invalid_utf8` | A file is not valid UTF-8. |
+| 19 | `receipt_core_hash_mismatch` | The receipt core's bytes do not hash to the value the freeze names. |
+| 20 | `render_artifact_hash_mismatch` | A rendered artifact's bytes do not match the frozen manifest. |
+| 21 | `render_manifest_disagreement` | The receipt core and the frozen core disagree. |
+| 22 | `render_manifest_order_invalid` | The manifest is not in its required order. |
+| 23 | `snapshot_boundary_violation` | The bundle claims to be signed, submittable, or not frozen. |
+| 24 | `unexpected_bundle_entry` | The directory holds something that is not part of the bundle. |
+
+`tests/verify-cli.test.ts` holds this table against the codes the command actually returns,
+so a reason added to the library cannot ship undocumented.
+
 ### Reading a red CI run
 
 A `failure` with **zero steps and a sub-10-second wall time is a starved job, not a gate result**: GitHub declined to start it for an account-level Actions billing reason, and the annotation on the check run is the only record. It looks identical to a real gate failure in `gh run list`, and it accounted for 21 of the 32 failures in this repository's history. Confirm with `gh api repos/{owner}/{repo}/check-runs/<id>/annotations` before spending time on the code. The full analysis is in [docs/plans/improvement-plan.md](docs/plans/improvement-plan.md).
