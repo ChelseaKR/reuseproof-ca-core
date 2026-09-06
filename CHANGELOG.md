@@ -10,6 +10,15 @@ No version has been tagged yet.
 
 ### Fixed
 
+- Marker hygiene's empty-scan guard is now per root rather than aggregate.
+  `scripts/check-hygiene.mjs` required one file across all roots together, but
+  the drift it exists to catch happens to one root at a time: a root that still
+  existed and merely stopped holding `.ts`/`.mjs` returned nothing, was absorbed
+  into the other roots' totals, and the green line went on naming it as scanned
+  while every bare marker under it was unenforced. Each configured root must now
+  contribute at least one file, the failure names the specific roots that
+  contributed none, and a passing run prints the per-root counts so a green gate
+  states what it actually covered (ADR-0011, #43).
 - Marker hygiene no longer reports success for a scan that examined nothing.
   `scripts/check-hygiene.mjs` walked three roots for two file extensions and
   exited 0 whenever it found no violations — including when it found no files at
