@@ -64,6 +64,42 @@ describe('an empty scan fails closed', () => {
     }
   });
 
+  // The drift this guard exists to catch happens to one root at a time. An aggregate check passes
+  // here, because the populated root supplies the files, while the drifted root is never read and
+  // the success line still names it (#43).
+  it('fails when one root is empty beside a populated one', async () => {
+    const drifted = await mkdtemp(join(tmpdir(), 'hygiene-drift-'));
+    try {
+      await write('clean.ts', 'export const value = 1;\n');
+      await writeFile(join(drifted, 'gate.js'), `// ${bareTodo}: unenforced\n`, 'utf8');
+      await mkdir(join(drifted, 'nested'), { recursive: true });
+      await writeFile(
+        join(drifted, 'nested', 'x.cjs'),
+        `// ${bareFixme}: also unenforced\n`,
+        'utf8',
+      );
+      expect(await check([dir, drifted])).toBe(1);
+    } finally {
+      await rm(drifted, { recursive: true, force: true });
+    }
+  });
+
+  it('names the drifted root, not the whole root list, when only one is empty', async () => {
+    const errors: string[] = [];
+    vi.mocked(console.error).mockImplementation((...args: unknown[]) => {
+      errors.push(args.map(String).join(' '));
+    });
+    const drifted = await mkdtemp(join(tmpdir(), 'hygiene-drift-'));
+    try {
+      await write('clean.ts', 'export const value = 1;\n');
+      expect(await check([dir, drifted])).toBe(1);
+      expect(errors.join('\n')).toContain(drifted);
+      expect(errors.join('\n')).not.toContain(dir);
+    } finally {
+      await rm(drifted, { recursive: true, force: true });
+    }
+  });
+
   it('rejects, naming the root, when a configured root does not exist', async () => {
     await expect(check([join(dir, 'no-such-root')])).rejects.toThrow('could not be read');
   });
@@ -158,6 +194,26 @@ describe('a clean scan reports what it covered', () => {
     await write('b.mjs', 'export const b = 2;\n');
     expect(await check([dir])).toBe(0);
     expect(logs.join('\n')).toContain('2 source file(s) scanned');
+  });
+
+  // A total attributed to the whole root list cannot be audited against the roots it names. Per
+  // root counts can (#43).
+  it('breaks the count down per root, so a named root is a root that contributed files', async () => {
+    const logs: string[] = [];
+    vi.mocked(console.log).mockImplementation((...args: unknown[]) => {
+      logs.push(args.map(String).join(' '));
+    });
+    const second = await mkdtemp(join(tmpdir(), 'hygiene-b-'));
+    try {
+      await write('a.ts', 'export const a = 1;\n');
+      await write('b.mjs', 'export const b = 2;\n');
+      await writeFile(join(second, 'c.ts'), 'export const c = 3;\n', 'utf8');
+      expect(await check([dir, second])).toBe(0);
+      expect(logs.join('\n')).toContain(`${dir}: 2`);
+      expect(logs.join('\n')).toContain(`${second}: 1`);
+    } finally {
+      await rm(second, { recursive: true, force: true });
+    }
   });
 });
 

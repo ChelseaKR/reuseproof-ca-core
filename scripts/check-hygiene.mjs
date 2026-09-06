@@ -7,13 +7,19 @@
  * `(#123)` issue reference or an issue URL. (The marker names are assembled from fragments so this
  * file does not trip its own check.)
  *
- * The gate fails closed on an empty scan. It used to report success after examining zero files: it
- * walked three root directories for two extensions, and if a root were renamed, moved under a
- * `packages/` layout, or simply came to hold no `.ts`/`.mjs`, the walk returned nothing and the
- * exit code said "clean". `make verify` would then report marker hygiene as enforced when nothing
- * had been read. Scanning nothing is not a pass, so `checkHygiene` now requires at least one file
- * and prints how many it examined — a green run states what it covered rather than only that it
- * found nothing.
+ * The gate fails closed on an empty scan, and it does so per root. It used to report success after
+ * examining zero files: it walked three root directories for two extensions, and if a root were
+ * renamed, moved under a `packages/` layout, or simply came to hold no `.ts`/`.mjs`, the walk
+ * returned nothing and the exit code said "clean". `make verify` would then report marker hygiene
+ * as enforced when nothing had been read.
+ *
+ * Requiring one file across all roots was not enough, because the drift this guard exists to catch
+ * happens to one root at a time. A single root that stopped matching the extension set returned
+ * `[]`, was absorbed into the other roots' totals, and the green line still named it as scanned —
+ * so every bare marker under it went unenforced with the merge gate green. `checkHygiene` now
+ * requires each configured root to contribute at least one file, names the specific roots that
+ * contributed none, and reports the per-root counts on success. A green run states what it
+ * actually covered rather than attributing one total to the whole root list (#43).
  *
  * A configured root that does not exist is likewise an error and not an empty result. That case
  * did fail before, but as an unhandled promise rejection with a stack trace; it now fails with a
@@ -70,19 +76,25 @@ async function sourceFiles(directory) {
  * unverified one.
  */
 export async function checkHygiene(roots = DEFAULT_ROOTS) {
-  const files = [];
+  // Keep the per-root breakdown, not just the total: the empty-scan guard below is per root, and
+  // the success line has to be able to say what each root actually contributed.
+  const scanned = [];
   for (const root of roots) {
-    files.push(...(await sourceFiles(root)));
+    scanned.push({ root, files: await sourceFiles(root) });
   }
+  const files = scanned.flatMap(({ files: rootFiles }) => rootFiles);
+  const emptyRoots = scanned.filter(({ files: rootFiles }) => rootFiles.length === 0);
 
-  if (files.length === 0) {
-    // Not a pass. No files means the roots or the extension set no longer describe where this
-    // repository keeps its source, so nothing was checked — and a gate that checked nothing has
-    // verified nothing.
+  if (emptyRoots.length > 0 || files.length === 0) {
+    // Not a pass. A root that contributed no files means that root, or the extension set, no
+    // longer describes where this repository keeps its source, so nothing under it was checked —
+    // and a gate that checked nothing there has verified nothing there. Checking the aggregate
+    // instead would let a populated root mask a blind one while the green line named both.
+    const blind = emptyRoots.map(({ root }) => root);
     console.error(
-      `No source files found under ${JSON.stringify(roots)}. This is a gate failure, not a clean ` +
-        `tree: marker hygiene examined nothing. Check the roots, and that they still hold ` +
-        `${[...allowedExtensions].sort().join('/')} files.`,
+      `No source files found under ${JSON.stringify(blind.length > 0 ? blind : roots)}. This is ` +
+        `a gate failure, not a clean tree: marker hygiene examined nothing there. Check the ` +
+        `roots, and that they still hold ${[...allowedExtensions].sort().join('/')} files.`,
     );
     return 1;
   }
@@ -102,9 +114,12 @@ export async function checkHygiene(roots = DEFAULT_ROOTS) {
     return 1;
   }
 
+  // Per-root counts, so a green run is auditable: a root reported as scanned is a root that
+  // demonstrably contributed files, rather than a name carried along in the root list.
+  const breakdown = scanned.map(({ root, files: rootFiles }) => `${root}: ${rootFiles.length}`);
   console.log(
-    `Marker hygiene: ${files.length} source file(s) scanned under ${JSON.stringify(roots)}, ` +
-      `no bare markers.`,
+    `Marker hygiene: ${files.length} source file(s) scanned under ${JSON.stringify(roots)} ` +
+      `(${breakdown.join(', ')}), no bare markers.`,
   );
   return 0;
 }
