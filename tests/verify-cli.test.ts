@@ -328,7 +328,11 @@ describe('the published command', () => {
     const shim = await readFile(new URL('bin/reuseproof-verify.js', root), 'utf8');
     const mode = (await stat(new URL('bin/reuseproof-verify.js', root))).mode;
 
-    expect(manifest.bin).toEqual({ 'reuseproof-verify': 'bin/reuseproof-verify.js' });
+    // This package ships more than one command now, so the assertion is about this one's
+    // wiring rather than about the size of the `bin` map. Every shipped command is still held
+    // to being measured: `tests/coverage-thresholds.test.ts` derives the coverage scope from
+    // `bin` itself, so a command added without a coverage entry fails there.
+    expect(manifest.bin['reuseproof-verify']).toBe('bin/reuseproof-verify.js');
     expect(shim).toContain("from '../dist/scripts/verify.js'");
     expect(shim.startsWith('#!/usr/bin/env node')).toBe(true);
     // The shim must not reimplement the check: everything it does is call one function.

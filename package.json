@@ -5,6 +5,7 @@
   "description": "Read-only evidence-domain foundation for ReuseProof CA.",
   "type": "module",
   "bin": {
+    "reuseproof-replay": "bin/reuseproof-replay.js",
     "reuseproof-verify": "bin/reuseproof-verify.js"
   },
   "engines": {
@@ -21,6 +22,7 @@
     "check:concurrency": "node scripts/check-workflow-concurrency.mjs",
     "check:pins": "node scripts/check-workflow-pins.mjs",
     "demo": "npm run build --silent && node dist/scripts/demo.js fixtures/reconciled-demo.json",
+    "demo:case": "node dist/scripts/demo-case.js fixtures/reconciled-demo.json",
     "demo:check": "node dist/scripts/demo.js fixtures/reconciled-demo.json > /dev/null",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
@@ -29,6 +31,7 @@
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "typecheck": "tsc --noEmit",
+    "replay:cli": "npm run build --silent && node bin/reuseproof-replay.js",
     "verify:cli": "npm run build --silent && node bin/reuseproof-verify.js"
   },
   "devDependencies": {

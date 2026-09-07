@@ -37,6 +37,60 @@ No version has been tagged yet.
 
 ### Added
 
+- **`evidence-case/v1` and `reuseproof-replay`: a frozen report could be proved
+  unaltered and never proved derived.** `validateReconciledCsvEvidenceIntegrity`
+  reruns "the exact inputs" and rejects any divergence, but the exact inputs were
+  a live JavaScript object graph and nothing serialized them. The emitted bundle
+  deliberately carries only report-safe aggregates and hashes, so
+  `reuseproof-verify` proved exactly what it says: this directory's bytes still
+  satisfy its own render manifest. It could not prove the bundle is what those
+  inputs produce, because the inputs were nowhere -- a gap the README already
+  named, when it said production restore and audit "still require durable
+  retention of those authoritative objects" and then modelled nothing that did.
+
+  An **evidence case** is that input on disk. `evidence-case.json` is the manifest,
+  and its own bytes yield the case ID the way `report-freeze.json`'s bytes yield
+  the snapshot ID. `case-input.json` holds every governance object in canonical
+  JSON with each series' sources as an ordered list of digest references.
+  `sources/<digest>` holds each source object verbatim, under the exact-byte
+  SHA-256 the ingestion boundary already computes.
+
+  Source objects are content-addressed, so two byte-identical submissions occupy
+  one file. Multiplicity is not lost by that: it lives in the reference list, in
+  submission order. That is load-bearing rather than tidy -- ADR-0009 rule 6 makes
+  delivery multiplicity input-specific, so a case that deduplicated the
+  *references* would find every digest present and still replay a different
+  `operationalHash` and root `evaluationHash`. The shipped demo fixture submits the
+  same bytes twice, so this is the case `make verify` actually exercises.
+
+  `reuseproof-replay` reads a case, reruns the evaluation and compares the report
+  it derives against a snapshot ID recorded independently, with the verifier's
+  discipline: nothing on stdout until every check passes, one machine-readable
+  line on stderr per refusal, an exit code per reason, `--expect-snapshot`
+  required, `--print-only` still non-zero. Fourteen typed refusal reasons, and no
+  partial read: a case that could not be reconstructed never yields a result.
+
+  One refusal has no equivalent in the verifier. The case reader validates each
+  governance object through its own domain constructor and deliberately does not
+  re-implement the evaluator's cross-object rules, so a case whose contracts share
+  an ID reads back faultlessly and is then refused at evaluation. That is
+  `replay_refused`, exit 7 -- its own code rather than an internal error, and
+  tested from a real case directory rather than a stub.
+
+  `make verify` gains `npm run demo:case`, which writes the demo evaluation's
+  bundle and its case into one container and runs both published commands against
+  them. Until now neither `bin` entry was executed by any gate step, and a command
+  no gate runs is a claim rather than a check. The step compares against
+  identifiers derived in-process rather than scraped from the commands' own
+  output, reads each exit code from the spawned process rather than through a
+  pipe, and fails closed naming the fixture if it ever stops carrying source
+  objects.
+
+  No artifact byte, hash, receipt field or existing schema changes, and nothing is
+  signed. A replay against a case the same party produced proves derivation, not
+  authenticity -- the limitation the verifier already states, and the reason both
+  commands demand a recorded identifier. See ADR-0013.
+
 - **`reuseproof-verify`, the on-disk bundle check as a command.**
   `verifyFrozenReportBundleAtPath` could re-verify a written bundle from disk
   alone, and only a TypeScript caller could reach it. A records clerk, a State

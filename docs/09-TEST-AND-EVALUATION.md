@@ -143,6 +143,20 @@ Fixtures contain no live credentials or unapproved infrastructure details.
 - every result record and array is strictly reconstructed, rejecting missing/extra/symbol/accessor/custom-prototype fields, decorated or sparse arrays, stateful length-spoofing proxies and accessors without invoking them; and
 - validation returns the canonical replay rather than the caller's object and makes no authenticity or regulatory claim.
 
+### Evidence case and replay
+
+- writing one complete evaluation input as a case, reading it back and rerunning the evaluation reproduces the identical snapshot ID, receipt ID and root `evaluationHash`;
+- two byte-identical source submissions occupy one stored file and two ordered references, and reproduce the multiplicity-sensitive `operationalHash` as well as the retry-insensitive `evidenceSetHash`; each reference is a private copy, so mutating one submission cannot change the other;
+- contracts, series, conversion rules and scheduled nonoperations arriving in a different order write byte-identical case bytes and the same case ID; `sourceObjects` order is submission order and is preserved;
+- a series with no source objects round-trips, writes no `sources` directory, and still replays;
+- flipping one byte of one source file is refused with that member's expected and actual digest named, rather than producing a different snapshot ID;
+- a case missing a required governance member, and a case carrying an entry the manifest does not list, are each refused with the member named;
+- a reordered member list is refused rather than accepted on set equality, and a manifest whose declared source bytes exceed what an evaluation accepts is refused before any of them are read;
+- a case written under one case or input schema version and read by a release that reads another is refused with both versions named;
+- an unreadable directory, an unreadable member, a non-regular entry, a symbolic link standing in for the case directory, a non-canonical or non-UTF-8 control file, a duplicated member and a source reference the manifest does not list each raise their own typed refusal; there is deliberately no partial or best-effort result;
+- a case whose governance objects are individually valid and mutually inconsistent reads back and is refused at evaluation, reported under its own `replay_refused` exit code rather than as an internal error or a pass; and
+- the reader returns a newly constructed frozen input rather than the caller's object, and makes no authenticity, provenance or regulatory claim.
+
 ### Required-series coverage
 
 - expected intervals exactly tile the half-open intersection of report/effective ranges at approved cadence, including 23/25-hour DST days;

@@ -67,6 +67,77 @@ to mistake for a verified one. A refusal writes one machine-readable line to sta
 `tests/verify-cli.test.ts` holds this table against the codes the command actually returns,
 so a reason added to the library cannot ship undocumented.
 
+### Proving a bundle is what its inputs produce
+
+`reuseproof-verify` answers one question: do this directory's bytes still satisfy the render
+manifest that governs them? A jurisdiction usually wants the other one — *is this bundle what
+those source files and those approved contracts produce?* — and until `evidence-case/v1` that
+question had nowhere to look, because the evaluation input was a live object graph and nothing
+serialized it.
+
+An **evidence case** is that input on disk: every governance object in canonical JSON, each
+source object stored verbatim under the exact-byte SHA-256 the ingestion boundary computes over
+it, and a manifest listing every member with its digest and byte length. Its own bytes yield the
+case ID, the way `report-freeze.json`'s bytes yield the snapshot ID.
+
+```sh
+npm run build
+node bin/reuseproof-replay.js path/to/case --expect-snapshot rpf1-<hex>
+node bin/reuseproof-replay.js path/to/case --expect-snapshot rpf1-<hex> --expect-evaluation-hash <hex>
+node bin/reuseproof-replay.js path/to/case --print-only
+```
+
+The command reads every member back over its declared digest, reconstructs the input, reruns the
+evaluation, and compares the report it derives against the snapshot ID you recorded when the
+bundle was issued. `--expect-snapshot` is required for the same reason it is required of the
+verifier: a case is unsigned, anyone holding this tool can write a wholly self-consistent one,
+and a replay that agrees only with itself is evidence of nothing. `--print-only` prints what the
+case derives and **still exits non-zero**.
+
+Two byte-identical submissions are stored as one file and referenced twice, because delivery
+multiplicity is part of the input under ADR-0009: a case that deduplicated the references would
+find every digest present and still replay a different operational hash. The shipped demo
+fixture is exactly that case, and `make verify` replays it through this command.
+
+**Record the root evaluation hash as well as the snapshot ID.** ADR-0008 keeps delivery
+multiplicity deliberately outside the receipt, so a case that lost one of two byte-identical
+submissions replays to the *same* snapshot ID, receipt ID and `evidenceSetHash`, and differs
+only in the multiplicity-sensitive `operationalHash` and root `evaluationHash`. Measured, by
+making a reader drop the second reference: `--expect-snapshot` alone passed, and
+`--expect-evaluation-hash` is what refused. `npm run demo:case` therefore passes both, and a
+jurisdiction recording only the snapshot ID should know it is not recording multiplicity.
+
+What a passing replay does and does not say: it says these bytes and these governance objects
+derive that report. It does not say the source bytes are what a system measured, and it is not a
+signature, an authenticity proof, or any kind of determination.
+
+| Exit | Reason | Meaning |
+|---|---|---|
+| 0 | replayed | The case replayed and derived the report you recorded. |
+| 2 | `usage` | The command line was not usable, including omitting both `--expect-snapshot` and `--print-only`. |
+| 3 | `snapshot_id_mismatch` | The case replayed and derives a different report than you recorded. |
+| 4 | `not_compared` | `--print-only`: replayed against itself and against nothing else. |
+| 5 | `internal_error` | Something failed that this tool does not model. Never a pass. |
+| 6 | `evaluation_hash_mismatch` | The snapshot matched and the recorded root evaluation hash did not. |
+| 7 | `replay_refused` | The case read, and the input it holds is not one this library will evaluate. |
+| 10 | `canonical_form_mismatch` | A control file is not in its canonical form. |
+| 11 | `case_directory_unreadable` | The directory could not be inspected or listed. |
+| 12 | `case_entry_not_a_regular_file` | An entry is a link, a directory, or a device. |
+| 13 | `case_file_missing` | A member the manifest lists is absent. |
+| 14 | `case_file_unreadable` | A member could not be read. |
+| 15 | `case_input_shape_invalid` | The input document does not carry the shape a case must. |
+| 16 | `case_manifest_order_invalid` | The member list is not in its required order. |
+| 17 | `case_manifest_shape_invalid` | The manifest does not carry exactly the fields it must. |
+| 18 | `case_member_digest_mismatch` | A member's bytes do not match the digest the manifest declares. |
+| 19 | `case_path_not_a_directory` | The path is not a real directory. |
+| 20 | `case_schema_version_unsupported` | A control file declares a case version this release does not read. |
+| 21 | `case_source_reference_unknown` | The input references a source the manifest does not list. |
+| 22 | `invalid_utf8` | A control file is not valid UTF-8. |
+| 23 | `unexpected_case_entry` | The directory holds something the manifest does not list. |
+
+`tests/replay-cli.test.ts` holds this table against the codes the command actually returns, so a
+reason added to the library cannot ship undocumented.
+
 ### Reading a red CI run
 
 A `failure` with **zero steps and a sub-10-second wall time is a starved job, not a gate result**: GitHub declined to start it for an account-level Actions billing reason, and the annotation on the check run is the only record. It looks identical to a real gate failure in `gh run list`, and it accounted for 21 of the 32 failures in this repository's history. Confirm with `gh api repos/{owner}/{repo}/check-runs/<id>/annotations` before spending time on the code. The full analysis is in [docs/plans/improvement-plan.md](docs/plans/improvement-plan.md).
@@ -187,6 +258,7 @@ Iterations 1–9 now include a headless TypeScript domain foundation, not a prod
 - versioned deterministic frozen-draft snapshots whose later versions require the actual valid, same-scope, immediately prior frozen report, plus a verification envelope that can validate only against its exact frozen-report subject—never product filing, destination acceptance, signature or approval;
 - an allowlisted local-output boundary that writes fixed safe filenames into a private staging directory, fsyncs each file and directory, and atomically exposes the complete bundle without including an envelope in the hashed report artifacts;
 - a matching read-side boundary that re-verifies one already written bundle from disk alone, trusting nothing still in memory: `report-freeze.json`'s own bytes yield the snapshot ID, name the exact receipt-core hash, and must agree with that receipt core on one canonically ordered render manifest whose byte lengths and digests every artifact then has to satisfy. A missing, unreadable, non-UTF-8, non-canonical, wrongly versioned, structurally altered, extra or non-regular entry each raises a typed refusal carrying a machine-readable reason; there is deliberately no partial or best-effort result, so a bundle that could not be checked never returns a verification; and
+- a canonical on-disk form of one complete evaluation input, `evidence-case/v1`, whose manifest's own bytes yield its case ID, whose governance objects are canonical JSON, and whose source objects are stored verbatim under the exact-byte SHA-256 the ingestion boundary already computes. Two byte-identical submissions occupy one file and two ordered references, so delivery multiplicity survives content addressing; a missing member, an extra entry, a digest mismatch, a reordered manifest, a non-canonical control file, an unknown source reference or an unsupported version each raises a typed refusal, and there is deliberately no partial read. A matching `reuseproof-replay` command reads a case, reruns the evaluation and compares the report it derives against an independently recorded snapshot ID; and
 - a synthetic end-to-end fixture and CLI demonstrating bounded fixture parsing → independent contract/bundle binding → exact CSV reconciliation → lifecycle/time-aware coverage and readiness → winner-only daily aggregation → content/render/receipt → frozen draft and root evaluation hash.
 
 Run the local slice:
@@ -203,7 +275,7 @@ Iteration 8 composes those boundaries without trusting caller-created provenance
 
 Iteration 9 adds strict replay validation for that complete result. The validator reruns the exact bytes and governance/lifecycle/report inputs, rejects any nested field or container-shape divergence—including coordinated field-and-hash tampering—and returns the new deeply frozen replay rather than the caller's object. Equivalent canonical input orderings validate the same result, while byte-identical retry multiplicity must pair with its exact operational result.
 
-The evaluator and validator are still bounded to in-memory synthetic bytes, zero to 64 sources per bundle, 64 sources total and 64 MiB of source bytes total. Source arrays must use stable non-shared, non-resizable backing storage; intrinsic typed-array length and copying ignore caller-shadowed properties and iterators. The foundation has no real vendor format, source-object or normalized-measurement storage, durable idempotency, database uniqueness, concurrent-worker behavior, authenticated correction/supersession workflow or numeric report projection. Its daily aggregate remains a pinned internal evaluation rather than a rendered regulatory value. The readiness result is explicitly a data-coverage preflight—not report approval. The fixture's lifecycle evidence, governance approvals and activation references are synthetic identifiers, not jurisdiction-approved facts. The emitted HTML/CSV/JSON covers only the synthetic evidence-coverage projection; it is not the complete quarterly or annual regulatory schema. Three real vendor adapters, real source-object ingestion, PDF, databases, tenancy/authentication, authenticated actors, append-only audit storage, vendor/OT networking, hosted report workflows, external APIs, destination receipt verification and cryptographic signing are not implemented. The verification-envelope constructor models trusted references but does not authenticate a human or validate an external destination's proof. On-disk bundle verification proves byte integrity only: because the bundle is deliberately unsigned, anyone holding this tool can regenerate a wholly self-consistent bundle, so the check detects alteration of a bundle but never forgery of one. It is sound only when compared against an independently recorded snapshot ID, which the verifier returns for exactly that purpose, and a superseding snapshot's predecessor cannot be proved from one bundle alone. The local in-memory receipt/freeze wrappers retain governing-contract preimages, normalized evaluation preimages, full coverage summaries and prior frozen reports for validation, while emitted report artifacts contain only report-safe aggregates and emitted cores contain only their hashes; production restore and audit therefore still require durable retention of those authoritative objects. BL-033, BL-038, BL-040, BL-042, BL-043, BL-047, BL-055 and BL-056 remain open.
+The evaluator and validator are still bounded to in-memory synthetic bytes, zero to 64 sources per bundle, 64 sources total and 64 MiB of source bytes total. Source arrays must use stable non-shared, non-resizable backing storage; intrinsic typed-array length and copying ignore caller-shadowed properties and iterators. The foundation has no real vendor format, source-object or normalized-measurement storage, durable idempotency, database uniqueness, concurrent-worker behavior, authenticated correction/supersession workflow or numeric report projection. Its daily aggregate remains a pinned internal evaluation rather than a rendered regulatory value. The readiness result is explicitly a data-coverage preflight—not report approval. The fixture's lifecycle evidence, governance approvals and activation references are synthetic identifiers, not jurisdiction-approved facts. The emitted HTML/CSV/JSON covers only the synthetic evidence-coverage projection; it is not the complete quarterly or annual regulatory schema. Three real vendor adapters, real source-object ingestion, PDF, databases, tenancy/authentication, authenticated actors, append-only audit storage, vendor/OT networking, hosted report workflows, external APIs, destination receipt verification and cryptographic signing are not implemented. The verification-envelope constructor models trusted references but does not authenticate a human or validate an external destination's proof. On-disk bundle verification proves byte integrity only: because the bundle is deliberately unsigned, anyone holding this tool can regenerate a wholly self-consistent bundle, so the check detects alteration of a bundle but never forgery of one. It is sound only when compared against an independently recorded snapshot ID, which the verifier returns for exactly that purpose, and a superseding snapshot's predecessor cannot be proved from one bundle alone. The local in-memory receipt/freeze wrappers retain governing-contract preimages, normalized evaluation preimages, full coverage summaries and prior frozen reports for validation, while emitted report artifacts contain only report-safe aggregates and emitted cores contain only their hashes; production restore and audit therefore still require durable retention of those authoritative objects. `evidence-case/v1` is the shape of that retention, defined by the code that consumes it: it separates two claims that were previously one. On-disk verification says a bundle has not been altered; a replay from a case says the bundle is what these source bytes and these approved contracts produce. The second is still not an authenticity claim, because a case is unsigned too and a replay against a case the same party produced proves derivation only. A case also retains complete governing-contract and source bytes, so it carries confidentiality weight the report-safe bundle does not, and no encryption, access control, retention schedule or transport is modelled for it. BL-033, BL-038, BL-040, BL-042, BL-043, BL-047, BL-055 and BL-056 remain open.
 
 The repository therefore remains pre-production. Its plans are not a legal opinion or engineering approval, and the executable slice makes no compliance, safety, water-quality or regulatory-filing determination.
 
