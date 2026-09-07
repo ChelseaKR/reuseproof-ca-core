@@ -29,7 +29,7 @@ The CI workflow may set up the pinned runtime and cache, but it calls only `make
 - Missing or ambiguous evidence cannot become a favorable result.
 - Numeric aggregates must reuse the exact accepted coverage winners, authorized effective-dated unit rules, exact decimal arithmetic and an explicit final rounding policy.
 - Receipt cores remain deterministic, unsigned, non-self-referential, and limited to the claim “evidence assembled.”
-- No code or documentation claims regulatory compliance, water safety, engineering adequacy, laboratory quality, legal sufficiency, or filing approval.
+- No code or documentation claims regulatory compliance, water safety, engineering adequacy, laboratory quality, legal sufficiency, or filing approval. For rendered artifacts and report-safe projections this is enforced by `tests/safety-vocabulary.test.ts`, which asserts the declared disclaimers are present, removes them, and then refuses any determination claim in what remains; the rest of this bullet remains a review obligation.
 - Changes to an expensive-to-reverse architecture, public contract, or safety boundary include an ADR.
 - Documentation, threat-model impact, observability impact, and rollback are updated or explicitly marked not applicable with a reason.
 - Only synthetic data is committed; secrets, personal data, critical-infrastructure details, and real operational evidence are prohibited.
