@@ -10,7 +10,7 @@ export default defineConfig({
       // here. `scripts/demo.ts` stays out on purpose: `npm run demo:check` runs it
       // as a subprocess, which this provider does not follow, so including it would
       // report 0% for code that does run.
-      include: ['src/**/*.ts', 'scripts/verify.ts'],
+      include: ['src/**/*.ts', 'scripts/replay.ts', 'scripts/verify.ts'],
       reporter: ['text', 'json-summary'],
       thresholds: {
         perFile: true,
@@ -19,6 +19,12 @@ export default defineConfig({
         lines: 80,
         statements: 80,
         'src/domain/**': {
+          branches: 95,
+          functions: 95,
+          lines: 95,
+          statements: 95,
+        },
+        'src/evidence-case.ts': {
           branches: 95,
           functions: 95,
           lines: 95,

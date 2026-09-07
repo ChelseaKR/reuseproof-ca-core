@@ -8,6 +8,7 @@ verify:
 	npm run test:coverage
 	npm run build
 	npm run demo:check
+	npm run demo:case
 	npm audit --audit-level=high
 	npm run hygiene
 	npm run check:pins

@@ -7,62 +7,12 @@ import {
   evaluateReconciledCsvEvidence,
   parseBoundedJson,
   validateReconciledCsvEvidenceIntegrity,
-  type ReconciledCsvEvidenceInput,
 } from '../src/index.js';
-import { requireStrictArray, requireStrictRecord } from '../src/domain/validation.js';
-
-function fixtureInput(value: unknown): ReconciledCsvEvidenceInput {
-  const record = requireStrictRecord(
-    value,
-    ['contracts', 'reportRange', 'reportTimeBasis', 'scheduledNonoperations', 'series'],
-    ['lifecycleState', 'lifecycleTimeline'],
-    'reconciled demo fixture',
-  );
-  const series = requireStrictArray(record.series, 'reconciled demo fixture.series').map(
-    (item, index) => {
-      const label = `reconciled demo fixture.series[${index.toString()}]`;
-      const source = requireStrictRecord(
-        item,
-        [
-          'requiredSeriesContractId',
-          'requiredSeriesContractVersion',
-          'csvContract',
-          'mapping',
-          'conversionRules',
-          'aggregatePolicy',
-          'sourceObjectsUtf8',
-        ],
-        [],
-        label,
-      );
-      const sourceObjects = requireStrictArray(
-        source.sourceObjectsUtf8,
-        `${label}.sourceObjectsUtf8`,
-      ).map((text, sourceIndex) => {
-        if (typeof text !== 'string') {
-          throw new TypeError(`${label}.sourceObjectsUtf8[${sourceIndex.toString()}] must be text`);
-        }
-        return new TextEncoder().encode(text);
-      });
-      const { sourceObjectsUtf8: _sourceObjectsUtf8, ...governance } = source;
-      return { ...governance, sourceObjects };
-    },
-  );
-  return {
-    contracts: record.contracts,
-    reportRange: record.reportRange,
-    reportTimeBasis: record.reportTimeBasis,
-    scheduledNonoperations: record.scheduledNonoperations,
-    series,
-    ...(Object.hasOwn(record, 'lifecycleTimeline')
-      ? { lifecycleTimeline: record.lifecycleTimeline }
-      : { lifecycleState: record.lifecycleState }),
-  } as unknown as ReconciledCsvEvidenceInput;
-}
+import { reconciledFixtureInput } from './demo-fixture.js';
 
 const fixturePath = resolve(process.argv[2] ?? 'fixtures/reconciled-demo.json');
 const fixtureText = await readFile(fixturePath, 'utf8');
-const input = fixtureInput(parseBoundedJson(fixtureText));
+const input = reconciledFixtureInput(parseBoundedJson(fixtureText));
 const result = validateReconciledCsvEvidenceIntegrity(evaluateReconciledCsvEvidence(input), input);
 
 process.stdout.write(

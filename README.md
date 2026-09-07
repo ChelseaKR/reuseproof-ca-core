@@ -67,6 +67,69 @@ to mistake for a verified one. A refusal writes one machine-readable line to sta
 `tests/verify-cli.test.ts` holds this table against the codes the command actually returns,
 so a reason added to the library cannot ship undocumented.
 
+### Proving a bundle is what its inputs produce
+
+`reuseproof-verify` answers one question: do this directory's bytes still satisfy the render
+manifest that governs them? A jurisdiction usually wants the other one — *is this bundle what
+those source files and those approved contracts produce?* — and until `evidence-case/v1` that
+question had nowhere to look, because the evaluation input was a live object graph and nothing
+serialized it.
+
+An **evidence case** is that input on disk: every governance object in canonical JSON, each
+source object stored verbatim under the exact-byte SHA-256 the ingestion boundary computes over
+it, and a manifest listing every member with its digest and byte length. Its own bytes yield the
+case ID, the way `report-freeze.json`'s bytes yield the snapshot ID.
+
+```sh
+npm run build
+node bin/reuseproof-replay.js path/to/case --expect-snapshot rpf1-<hex>
+node bin/reuseproof-replay.js path/to/case --expect-snapshot rpf1-<hex> --expect-evaluation-hash <hex>
+node bin/reuseproof-replay.js path/to/case --print-only
+```
+
+The command reads every member back over its declared digest, reconstructs the input, reruns the
+evaluation, and compares the report it derives against the snapshot ID you recorded when the
+bundle was issued. `--expect-snapshot` is required for the same reason it is required of the
+verifier: a case is unsigned, anyone holding this tool can write a wholly self-consistent one,
+and a replay that agrees only with itself is evidence of nothing. `--print-only` prints what the
+case derives and **still exits non-zero**.
+
+Two byte-identical submissions are stored as one file and referenced twice, because delivery
+multiplicity is part of the input under ADR-0009: a case that deduplicated the references would
+find every digest present and still replay a different operational hash. The shipped demo
+fixture is exactly that case, and `make verify` replays it through this command.
+
+What a passing replay does and does not say: it says these bytes and these governance objects
+derive that report. It does not say the source bytes are what a system measured, and it is not a
+signature, an authenticity proof, or any kind of determination.
+
+| Exit | Reason | Meaning |
+|---|---|---|
+| 0 | replayed | The case replayed and derived the report you recorded. |
+| 2 | `usage` | The command line was not usable, including omitting both `--expect-snapshot` and `--print-only`. |
+| 3 | `snapshot_id_mismatch` | The case replayed and derives a different report than you recorded. |
+| 4 | `not_compared` | `--print-only`: replayed against itself and against nothing else. |
+| 5 | `internal_error` | Something failed that this tool does not model. Never a pass. |
+| 6 | `evaluation_hash_mismatch` | The snapshot matched and the recorded root evaluation hash did not. |
+| 7 | `replay_refused` | The case read, and the input it holds is not one this library will evaluate. |
+| 10 | `canonical_form_mismatch` | A control file is not in its canonical form. |
+| 11 | `case_directory_unreadable` | The directory could not be inspected or listed. |
+| 12 | `case_entry_not_a_regular_file` | An entry is a link, a directory, or a device. |
+| 13 | `case_file_missing` | A member the manifest lists is absent. |
+| 14 | `case_file_unreadable` | A member could not be read. |
+| 15 | `case_input_shape_invalid` | The input document does not carry the shape a case must. |
+| 16 | `case_manifest_order_invalid` | The member list is not in its required order. |
+| 17 | `case_manifest_shape_invalid` | The manifest does not carry exactly the fields it must. |
+| 18 | `case_member_digest_mismatch` | A member's bytes do not match the digest the manifest declares. |
+| 19 | `case_path_not_a_directory` | The path is not a real directory. |
+| 20 | `case_schema_version_unsupported` | A control file declares a case version this release does not read. |
+| 21 | `case_source_reference_unknown` | The input references a source the manifest does not list. |
+| 22 | `invalid_utf8` | A control file is not valid UTF-8. |
+| 23 | `unexpected_case_entry` | The directory holds something the manifest does not list. |
+
+`tests/replay-cli.test.ts` holds this table against the codes the command actually returns, so a
+reason added to the library cannot ship undocumented.
+
 ### Reading a red CI run
 
 A `failure` with **zero steps and a sub-10-second wall time is a starved job, not a gate result**: GitHub declined to start it for an account-level Actions billing reason, and the annotation on the check run is the only record. It looks identical to a real gate failure in `gh run list`, and it accounted for 21 of the 32 failures in this repository's history. Confirm with `gh api repos/{owner}/{repo}/check-runs/<id>/annotations` before spending time on the code. The full analysis is in [docs/plans/improvement-plan.md](docs/plans/improvement-plan.md).
