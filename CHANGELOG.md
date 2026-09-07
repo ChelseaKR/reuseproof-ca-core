@@ -99,6 +99,79 @@ No version has been tagged yet.
   policy can only ever move a row from accepted to quarantined, or refine the
   reason a row was already quarantined for. It can never make a row acceptable
   that was not.**
+- **`release.yml` could not be dispatched at all, and never had been.** Its
+  `authorize` job called a reusable workflow from `ChelseaKR/portfolio-standards`,
+  which is private. A **public** repository cannot call a reusable workflow that
+  lives in a private one, and GitHub refuses the calling file at *parse* time
+  rather than failing the job at run time, so the workflow was unusable in its
+  entirety rather than partly broken. Measured here rather than inferred from a
+  sibling:
+
+  ```
+  gh workflow run release.yml -R ChelseaKR/reuseproof-ca-core --ref main -f tag=v0.0.0
+  HTTP 422: failed to parse workflow: error parsing called workflow
+  "ChelseaKR/portfolio-standards/.github/workflows/release-authorize.yml@3692aa52…"
+  : workflow was not found
+  ```
+
+  "was not found" is how GitHub words the visibility rule, which sends the reader
+  after the wrong fact: the commit exists, the file exists at it, and the standards
+  repository's Actions access level is already `user`. This is the reason this
+  repository has never cut a release, and no amount of correct release metadata
+  would have changed it.
+
+  The pin now names the public copy in `ChelseaKR/.github`. Diffing the two blobs
+  rather than assuming parity: they are byte-identical except that the public one
+  adds `timeout-minutes: 30` to the `authorize` job, so the move is parity plus one
+  tightening on the job that verifies the signed tag.
+
+  Three pieces of scaffolding existed **only** because the callee was private, and
+  all three are now stale rather than merely redundant, so they go with it:
+  `.github/dependabot.yml` suppressed that one pin from updates (an unreachable
+  private dependency records `git_dependencies_not_reachable` and fails the whole
+  weekly run), which now hides a pin Dependabot can read; a comment in
+  `scripts/check-workflow-pins.mjs` named the wrong repository; and
+  `.github/workflows/codeql.yml` justified `upload: never` with "this private repo",
+  which this repository has not been since it was made public. That last one is a
+  comment correction only — `GET /code-scanning/alerts` now answers with a list, but
+  whether to switch that job to a real upload is untested and is left alone.
+  `scripts/codeql-gate.mjs` still fails the job on error-severity findings either way.
+
+- **`CITATION.cff` published a release date for a release that never happened,
+  and declared no version to attach it to.** It carried
+  `date-released: 2026-07-19` while `git tag --list` was empty here and on
+  `origin`, no GitHub Release existed, and the line six above this one said in
+  terms that no version had been tagged. Citation tooling prints that field as
+  the date the software was released, so anyone citing this project got a
+  release date for a release that does not exist. The date was real; it was
+  just the date of something else. The file declared no `version` key at all,
+  so it gave a release date and nothing to attach it to.
+
+  That is this project's own dominant defect class in its packaging. The domain
+  refuses to choose a winner between contradictory readings and quarantines
+  them, and `evaluateReconciledCsvEvidence` keeps `no_source_objects` distinct
+  from `reconciled`, because a state that was never established must not read
+  like one that was. A release date over no release is the same mistake in the
+  metadata, in the one file a citation manager reads mechanically and a human
+  never re-reads.
+
+  `date-released` is gone, `version: '0.1.0'` is present and compared against
+  `package.json` rather than trusted, and `tests/release-claims.test.ts` now
+  derives the release state from `git tag --list`. Three claims are bound to the
+  tags **in both directions**, so the fix cannot be undone by whoever cuts the
+  first release and cannot make that release ship without an entry: the declared
+  version has to be tagged or disclosed as untagged where a reader arrives;
+  `date-released` has to be present exactly when a tag names the declared
+  version; and a dated `CHANGELOG.md` section has to exist exactly then too.
+
+  Run against the unmodified tree before anything was edited, the new module
+  reported five findings rather than the one it was written for. Besides the
+  citation date and the missing `version`, `README.md` named `0.1.0` nowhere, so
+  its "no tag shipped yet (pre-1.0)" row was a sentence that could go stale
+  against a version bump with nothing to notice. That row now names the version.
+  Both workflows also check out with `fetch-depth: 0`: `actions/checkout`
+  fetches no tags at the default depth, and a tag-reading check on a shallow
+  clone is a check that cannot see its subject.
 
 - **The weekly full-history secret sweep could not fail on a credential that
   had been revoked.** `trufflehog.yml` ran `--only-verified`, which reports a

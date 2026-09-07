@@ -188,8 +188,8 @@ export async function checkWorkflowPins(directory = DEFAULT_WORKFLOW_DIR) {
       );
       continue;
     }
-    // A reusable workflow is selected by commit, not by release: `ChelseaKR/portfolio-standards`
-    // publishes no tags for `release-authorize.yml`, so there is no version string a comment could
+    // A reusable workflow is selected by commit, not by release: `ChelseaKR/.github` publishes no
+    // tags for `release-authorize.yml`, so there is no version string a comment could
     // name and no second fact for this gate to compare the SHA against. The SHA requirement above
     // still applies to it. This is a carve-out by reference SHAPE, not by owner or by name, so it
     // cannot be widened to excuse an action.
