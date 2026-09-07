@@ -567,7 +567,12 @@ describe('the manifest is the root of the chain, and its own shape is checked', 
         })),
       }));
 
-      await expectRefusal(directory, 'case_manifest_shape_invalid');
+      // The message, not only the reason. A source member's name must equal its digest, so a
+      // bad digest is *also* refused as a bad member name, under the same reason code -- and
+      // measured: with the pattern weakened to accept fewer than 64 characters, this test
+      // stayed green on the reason alone. Asserting the message is what holds the pattern.
+      const refusal = await expectRefusal(directory, 'case_manifest_shape_invalid');
+      expect(refusal.message).toContain('must be a lowercase SHA-256 digest');
     }
   });
 
