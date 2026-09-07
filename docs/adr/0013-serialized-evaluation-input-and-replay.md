@@ -103,6 +103,12 @@ Benefits:
   that consumes it, rather than by a hosted system that does not exist;
 - a jurisdiction can be handed a bundle, a case and a recorded snapshot ID, and can check
   the stronger of the two claims with one command and no program;
+- the boundary of what a snapshot ID records became measurable rather than argued: because
+  ADR-0008 keeps delivery multiplicity outside the receipt, a case that loses one of two
+  byte-identical submissions replays to the same snapshot ID, receipt ID and
+  `evidenceSetHash`. Verified by sabotaging a reader to drop the second reference —
+  `--expect-snapshot` passed and `--expect-evaluation-hash` refused. That is why the gate
+  step records and checks both, and why `--expect-evaluation-hash` exists at all;
 - delivery multiplicity, which the receipt deliberately does not carry, survives to disk;
 - byte-level claims made about future derivations become checkable rather than argued; and
 - both published commands are now exercised end to end inside `make verify`, against the

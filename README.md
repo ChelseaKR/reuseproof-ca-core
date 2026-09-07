@@ -99,6 +99,14 @@ multiplicity is part of the input under ADR-0009: a case that deduplicated the r
 find every digest present and still replay a different operational hash. The shipped demo
 fixture is exactly that case, and `make verify` replays it through this command.
 
+**Record the root evaluation hash as well as the snapshot ID.** ADR-0008 keeps delivery
+multiplicity deliberately outside the receipt, so a case that lost one of two byte-identical
+submissions replays to the *same* snapshot ID, receipt ID and `evidenceSetHash`, and differs
+only in the multiplicity-sensitive `operationalHash` and root `evaluationHash`. Measured, by
+making a reader drop the second reference: `--expect-snapshot` alone passed, and
+`--expect-evaluation-hash` is what refused. `npm run demo:case` therefore passes both, and a
+jurisdiction recording only the snapshot ID should know it is not recording multiplicity.
+
 What a passing replay does and does not say: it says these bytes and these governance objects
 derive that report. It does not say the source bytes are what a system measured, and it is not a
 signature, an authenticity proof, or any kind of determination.
