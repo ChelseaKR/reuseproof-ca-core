@@ -554,16 +554,21 @@ describe('the manifest is the root of the chain, and its own shape is checked', 
   });
 
   it('refuses a member digest that is not a lowercase SHA-256', async () => {
-    const directory = await writeCase(reconciledEvidenceInput());
-    await restate(directory, (manifest) => ({
-      ...manifest,
-      members: (manifest.members as Record<string, unknown>[]).map((member) => ({
-        ...member,
-        sha256: 'NOT-A-DIGEST',
-      })),
-    }));
+    // Three shapes, because one is not enough to hold the pattern to its length. A fixture of
+    // only `NOT-A-DIGEST` is refused by the character class alone, so a digest pattern that had
+    // quietly stopped requiring 64 characters would still look enforced.
+    for (const sha256 of ['NOT-A-DIGEST', 'a'.repeat(63), 'A'.repeat(64)]) {
+      const directory = await writeCase(reconciledEvidenceInput());
+      await restate(directory, (manifest) => ({
+        ...manifest,
+        members: (manifest.members as Record<string, unknown>[]).map((member) => ({
+          ...member,
+          sha256,
+        })),
+      }));
 
-    await expectRefusal(directory, 'case_manifest_shape_invalid');
+      await expectRefusal(directory, 'case_manifest_shape_invalid');
+    }
   });
 
   it('refuses a member byte length that is not a non-negative safe integer', async () => {
@@ -755,19 +760,21 @@ describe('the input document is checked before any of it is believed', () => {
   });
 
   it('refuses a source reference digest that is not a lowercase SHA-256', async () => {
-    const directory = await writeCase(reconciledEvidenceInput());
-    await rewriteInput(directory, (input) => ({
-      ...input,
-      series: (input.series as Record<string, unknown>[]).map((series) => ({
-        ...series,
-        sourceObjects: (series.sourceObjects as Record<string, unknown>[]).map((reference) => ({
-          ...reference,
-          sha256: 'NOT-A-DIGEST',
+    for (const sha256 of ['NOT-A-DIGEST', 'a'.repeat(63), 'A'.repeat(64)]) {
+      const directory = await writeCase(reconciledEvidenceInput());
+      await rewriteInput(directory, (input) => ({
+        ...input,
+        series: (input.series as Record<string, unknown>[]).map((series) => ({
+          ...series,
+          sourceObjects: (series.sourceObjects as Record<string, unknown>[]).map((reference) => ({
+            ...reference,
+            sha256,
+          })),
         })),
-      })),
-    }));
+      }));
 
-    await expectRefusal(directory, 'case_input_shape_invalid');
+      await expectRefusal(directory, 'case_input_shape_invalid');
+    }
   });
 
   it('refuses a source reference byte length that is not a non-negative safe integer', async () => {
