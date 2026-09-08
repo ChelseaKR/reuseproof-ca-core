@@ -68,13 +68,15 @@ export type CsvMeasurementReconciliationOutcome =
     };
 
 export interface CsvMeasurementReconciliationResult {
-  readonly schemaVersion: 'csv-measurement-reconciliation-result/v1';
+  readonly schemaVersion: 'csv-measurement-reconciliation-result/v2';
   readonly requiredSeriesContractId: string;
   readonly requiredSeriesContractVersion: string;
   readonly requiredSeriesContractHash: string;
   readonly csvContractHash: string;
   readonly mappingHash: string;
   readonly conversionRuleSetHash: string;
+  /** The one sentinel and plausibility policy every reconciled source was judged by, or `null`. */
+  readonly plausibilityPolicyHash: string | null;
   readonly submittedSourceCount: number;
   readonly uniqueSourceCount: number;
   readonly duplicateSourceSubmissionCount: number;
@@ -138,7 +140,11 @@ function validateGovernance(submissions: readonly NormalizedSubmission[]): void 
       result.requiredSeriesContractHash !== baselineResult.requiredSeriesContractHash ||
       result.routing.contractHash !== baselineResult.routing.contractHash ||
       result.mappingHash !== baselineResult.mappingHash ||
-      result.conversionRuleSetHash !== baselineResult.conversionRuleSetHash
+      result.conversionRuleSetHash !== baselineResult.conversionRuleSetHash ||
+      // Two submissions reconciled against one another must have been judged plausible by the
+      // same approved policy, or the accepted set is a mixture of two different rules about what
+      // a sensor fault looks like, with nothing in the result saying so.
+      result.plausibilityPolicyHash !== baselineResult.plausibilityPolicyHash
     ) {
       throw new RangeError('CSV reconciliation sources must share identical governed contracts');
     }
@@ -341,7 +347,7 @@ function withReconciliationHash(
   return deepFreeze({
     ...result,
     reconciliationHash: sha256(
-      canonicalJson({ schemaVersion: 'csv-measurement-reconciliation-binding/v1', result }),
+      canonicalJson({ schemaVersion: 'csv-measurement-reconciliation-binding/v2', result }),
     ),
   });
 }
@@ -422,11 +428,12 @@ export function reconcileCsvMeasurementSources(
   let conflictingIdentityCount = 0;
   const governanceHash = sha256(
     canonicalJson({
-      schemaVersion: 'csv-measurement-reconciliation-governance-binding/v1',
+      schemaVersion: 'csv-measurement-reconciliation-governance-binding/v2',
       requiredSeriesContractHash: baseline.result.requiredSeriesContractHash,
       csvContractHash: baseline.result.routing.contractHash,
       mappingHash: baseline.result.mappingHash,
       conversionRuleSetHash: baseline.result.conversionRuleSetHash,
+      plausibilityPolicyHash: baseline.result.plausibilityPolicyHash,
     }),
   );
 
@@ -495,13 +502,14 @@ export function reconcileCsvMeasurementSources(
     compareCodeUnits(left.observationId, right.observationId),
   );
   return withReconciliationHash({
-    schemaVersion: 'csv-measurement-reconciliation-result/v1',
+    schemaVersion: 'csv-measurement-reconciliation-result/v2',
     requiredSeriesContractId: baseline.result.requiredSeriesContractId,
     requiredSeriesContractVersion: baseline.result.requiredSeriesContractVersion,
     requiredSeriesContractHash: baseline.result.requiredSeriesContractHash,
     csvContractHash: baseline.result.routing.contractHash,
     mappingHash: baseline.result.mappingHash,
     conversionRuleSetHash: baseline.result.conversionRuleSetHash,
+    plausibilityPolicyHash: baseline.result.plausibilityPolicyHash,
     submittedSourceCount: submissions.length,
     uniqueSourceCount: uniqueSubmissions.length,
     duplicateSourceSubmissionCount: submissions.length - uniqueSubmissions.length,

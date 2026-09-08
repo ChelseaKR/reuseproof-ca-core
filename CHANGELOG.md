@@ -10,6 +10,41 @@ No version has been tagged yet.
 
 ### Fixed
 
+- **A vendor's sensor-fault marker was published as a measurement.** A CSV cell
+  holding `-9999` -- what a great many vendor systems write when a sensor
+  faults -- is a valid decimal, so normalization accepted it, converted it and
+  fed it to the daily aggregate. Measured on this repository's own synthetic
+  demo fixture, with one row of a two-row flow series carrying that marker: the
+  published daily mean was **-4939.50 gal/day**, at an expected count of 2, an
+  accepted count of 2, zero gaps and zero quarantines. A treatment works
+  reporting a negative average daily flow did so at full coverage, with nothing
+  anywhere on the record suggesting a fault. The non-numeric markers (`ERR`,
+  `NaN`, an empty cell) were reported as `malformed_value`, which says the file
+  was written badly when in fact it was written exactly as the vendor documents
+  a fault.
+
+  `plausibility-policy/v1` (ADR-0014) is the fix, and it is a governance object
+  rather than a rule this library invents: sentinel literals compared exactly
+  against the cell as the source wrote it, and an inclusive plausible range per
+  parameter and canonical unit, both approved and authorized by the
+  jurisdiction and content-addressed into the receipt. A value hit by either is
+  quarantined as `sensor_sentinel` or `out_of_plausible_range` -- never dropped
+  and never clamped. On the same fixture with the approved policy bound, the
+  published mean is **150.00 gal/day**, coverage is unchanged at 2 of 2, and
+  the quarantine count is 1.
+
+  The range is compared **in exact decimal, on the value after conversion into
+  the canonical unit**, through the same `convert` the daily aggregate uses. A
+  bound compared against the source value would mean a different thing for
+  every source unit; a bound compared through a float would make an inclusive
+  boundary a matter of representation. `20.0000000000000000001` source units
+  against a canonical maximum of `10` is refused; `20` exactly is accepted.
+
+  The property that makes this safe to introduce is asserted per row: **a bound
+  policy can only ever move a row from accepted to quarantined, or refine the
+  reason a row was already quarantined for. It can never make a row acceptable
+  that was not.**
+
 - **The weekly full-history secret sweep could not fail on a credential that
   had been revoked.** `trufflehog.yml` ran `--only-verified`, which reports a
   finding only when TruffleHog authenticates the credential against the live
@@ -36,6 +71,35 @@ No version has been tagged yet.
   or lets the pinned ref and the `version:` input name different releases.
 
 ### Added
+
+- **`plausibility-policy/v1`, and the artifact versions that state it.** Bound
+  optionally per series beside the unit conversion rules, through
+  `createPlausibilityPolicy`, `hashPlausibilityPolicy` and
+  `bindCsvMeasurementGovernance`. A policy that could decide nothing about the
+  series it is bound to -- no sentinel literals and no range for that parameter
+  and canonical unit -- is refused, naming both, because an approved identifier
+  in a receipt with nothing behind it is a check that cannot fail. Sources
+  reconciled against one another must share one policy. The receipt names it as
+  `governance:plausibility-policy:<contract>@<version>` when one governs a
+  series, and carries no entry at all when none does, rather than a placeholder
+  digest for an object that does not exist.
+
+  Four artifacts state the policy and therefore move a version:
+  `csv-measurement-governance-binding/v2`,
+  `csv-measurement-normalization-result/v2`,
+  `csv-measurement-reconciliation-result/v2` and `evidence-case-input/v2`. Each
+  carries `plausibilityPolicyHash: string | null`, stated rather than omitted:
+  a field that disappeared when no policy applied would read the same as an
+  artifact written before this library had the concept. `evidence-case-input`
+  moves because a case that did not carry the policy would replay a
+  policy-governed series as an ungoverned one, and the integrity check would
+  report a divergence whose cause was the case format rather than the bytes.
+
+  `QuarantineReason` gains `sensor_sentinel` and `out_of_plausible_range`, and
+  is now derived from an exported `QUARANTINE_REASONS` constant: the list
+  previously existed twice, as a union type and as a runtime array inside
+  `createObservation`, and the two could drift with nothing to notice.
+  `coverage-validation.ts` derives its own wider list from the same constant.
 
 - **`evidence-case/v1` and `reuseproof-replay`: a frozen report could be proved
   unaltered and never proved derived.** `validateReconciledCsvEvidenceIntegrity`

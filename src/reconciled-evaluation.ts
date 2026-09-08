@@ -12,6 +12,7 @@ import {
   type CsvMeasurementGovernanceBinding,
   type CsvMeasurementNormalizationInput,
 } from './domain/csv-normalization.js';
+import { createPlausibilityPolicy, type PlausibilityPolicy } from './domain/plausibility.js';
 import {
   reconcileCsvMeasurementSources,
   type CsvMeasurementReconciliationResult,
@@ -70,6 +71,13 @@ export interface ReconciledCsvSeriesInput {
   readonly mapping: CsvMeasurementMapping;
   readonly conversionRules: readonly UnitConversionRule[];
   readonly aggregatePolicy: DailyAggregatePolicy;
+  /**
+   * The jurisdiction's approved sentinel and plausibility policy for this series, if it has one.
+   *
+   * Optional because most series are governed by none, and because a default range shipped by
+   * this library would be a rule nobody approved applied to everybody's data.
+   */
+  readonly plausibilityPolicy?: PlausibilityPolicy;
   readonly sourceObjects: readonly Uint8Array[];
 }
 
@@ -145,6 +153,7 @@ interface NormalizedSeriesInput {
   readonly mapping: CsvMeasurementMapping;
   readonly conversionRules: readonly UnitConversionRule[];
   readonly aggregatePolicy: DailyAggregatePolicy;
+  readonly plausibilityPolicy: PlausibilityPolicy | null;
   readonly sourceObjects: readonly Uint8Array[];
 }
 
@@ -238,7 +247,7 @@ function normalizeSeries(value: unknown): readonly NormalizedSeriesInput[] {
           'aggregatePolicy',
           'sourceObjects',
         ],
-        [],
+        ['plausibilityPolicy'],
         label,
       );
       const sourceObjects = requireStrictArray(record.sourceObjects, `${label}.sourceObjects`);
@@ -264,6 +273,10 @@ function normalizeSeries(value: unknown): readonly NormalizedSeriesInput[] {
               compareCodeUnits(left.version, right.version),
           ),
         aggregatePolicy: createDailyAggregatePolicy(record.aggregatePolicy),
+        plausibilityPolicy:
+          record.plausibilityPolicy === undefined
+            ? null
+            : createPlausibilityPolicy(record.plausibilityPolicy),
         sourceObjects: exactSources,
       };
     },
@@ -525,6 +538,18 @@ function sourceHashes(series: readonly ReconciledCsvSeriesEvaluation[]): readonl
         logicalName: `governance:daily-aggregate-policy:${key}`,
         sha256: item.dailyAggregate.aggregatePolicyHash,
       },
+      // Listed only when one governs the series. An entry is the statement that an approved
+      // policy decided which readings were sensor faults; its absence is the statement that no
+      // such policy was bound, which is the honest reading of a series that has none. A
+      // placeholder digest here would name a governance object that does not exist.
+      ...(item.reconciliation.governance.plausibilityPolicyHash === null
+        ? []
+        : [
+            {
+              logicalName: `governance:plausibility-policy:${key}`,
+              sha256: item.reconciliation.governance.plausibilityPolicyHash,
+            },
+          ]),
     ];
   });
   const lengths = new Map<string, number>();
@@ -587,6 +612,14 @@ function pinnedVersions(
           name: `csv-normalization-rule-set:${key}`,
           value: item.reconciliation.governance.conversionRuleSetHash,
         },
+        ...(item.reconciliation.governance.plausibilityPolicyHash === null
+          ? []
+          : [
+              {
+                name: `plausibility-policy:${key}`,
+                value: item.reconciliation.governance.plausibilityPolicyHash,
+              },
+            ]),
         {
           name: `reconciled-evidence-set:${key}`,
           value: item.evidenceSetHash,
@@ -627,6 +660,9 @@ export function evaluateReconciledCsvEvidence(
         mapping: item.mapping,
         requiredSeriesContract: contract,
         conversionRules: item.conversionRules,
+        ...(item.plausibilityPolicy === null
+          ? {}
+          : { plausibilityPolicy: item.plausibilityPolicy }),
       }),
     );
     const governance = bindCsvMeasurementGovernance({
@@ -634,6 +670,7 @@ export function evaluateReconciledCsvEvidence(
       mapping: item.mapping,
       requiredSeriesContract: contract,
       conversionRules: item.conversionRules,
+      ...(item.plausibilityPolicy === null ? {} : { plausibilityPolicy: item.plausibilityPolicy }),
     });
     const reconciliation: ReconciledCsvSourceEvaluation =
       sources.length === 0
@@ -669,7 +706,9 @@ export function evaluateReconciledCsvEvidence(
           reconciliation.result.csvContractHash !== reconciliation.governance.csvContractHash ||
           reconciliation.result.mappingHash !== reconciliation.governance.mappingHash ||
           reconciliation.result.conversionRuleSetHash !==
-            reconciliation.governance.conversionRuleSetHash))
+            reconciliation.governance.conversionRuleSetHash ||
+          reconciliation.result.plausibilityPolicyHash !==
+            reconciliation.governance.plausibilityPolicyHash))
     ) {
       throw new RangeError(
         'reconciled evidence result does not match its independent governing contract',

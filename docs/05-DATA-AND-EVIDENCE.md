@@ -186,6 +186,14 @@ The contract obeys these non-bypassable rules:
 
 No record is silently dropped. The ingestion receipt counts accepted, duplicate, quarantined and rejected-before-persistence records, with reasons.
 
+### Sensor sentinels and plausible ranges
+
+A vendor system writes a marker rather than a measurement when a sensor faults: `-9999`, `9999.99`, `NaN`, `ERR`, or an empty cell. Three of those are non-numeric and were reported as `malformed_value`, which says the file was written badly when it was written exactly as the vendor documents a fault; the numeric ones were valid decimals, so they were accepted, converted and aggregated. Measured on the shipped synthetic demo fixture, one such marker in a two-row flow series published a daily mean of **-4939.50 gal/day** at full coverage, with no gap and no quarantine.
+
+`plausibility-policy/v1` (ADR-0014) closes that. It is a jurisdiction-approved, hashed governance object, optional per series, carrying exact sentinel literals and an inclusive plausible range per parameter and canonical unit. A value hit by either is quarantined as `sensor_sentinel` or `out_of_plausible_range` — never dropped, never clamped, and counted as quarantine exactly like the four reasons above. The range is compared in exact decimal on the value *after* conversion into the canonical unit, so one approved bound means the same thing whatever unit a vendor exports in.
+
+The library ships no default range and decides nothing: it applies the range it is handed and records which policy version did so. A policy that carries no sentinel literals and no range for the series it is bound to is refused, because an approved identifier in a receipt with nothing behind it is a check that cannot fail. Where no policy is approved, the governance binding, the normalization result and the reconciliation result all state `plausibilityPolicyHash: null` rather than omitting the field, so "no policy governed this series" is readable and is not confused with an artifact written before the concept existed.
+
 ## 8. Adapter and mapping approval
 
 Each mapping requires:
@@ -326,7 +334,7 @@ A receipt is an unsigned deterministic hash manifest associated with a separate 
 
 Iteration 8 adds `reconciled-csv-evidence-evaluation/v1` as a strict composition of the existing CSV, coverage, numeric, receipt and freeze schemas. The caller supplies an independent set of one to 64 required-series contracts and exactly one matching series bundle for each contract ID/version. A mapping or available source cannot create, remove or relax that set. Each bundle supplies its reviewed CSV contract, measurement mapping, conversion rules, daily aggregate policy and zero to 64 exact source byte objects; the complete evaluation accepts at most 64 submitted source objects and 64 MiB of source bytes across all bundles.
 
-Every bundle first derives `csv-measurement-governance-binding/v1` from its required-series contract, CSV contract, mapping and conversion-rule set, whether or not source bytes are present. Its source state is a tagged union:
+Every bundle first derives `csv-measurement-governance-binding/v2` from its required-series contract, CSV contract, mapping, conversion-rule set and optional plausibility policy, whether or not source bytes are present. Its source state is a tagged union:
 
 - `reconciled` contains the rerun ADR-0007 result and uses its reconciliation hash as the multiplicity-sensitive `operationalHash`;
 - `no_source_objects` contains the validated governance, a null result and a typed operational hash, then supplies an empty observation set so applicable expected intervals remain gaps.

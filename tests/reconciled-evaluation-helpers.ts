@@ -34,6 +34,30 @@ export interface TestSeriesOptions {
   readonly mappingOverrides?: Readonly<Record<string, unknown>>;
   readonly conversionRuleOverrides?: Readonly<Record<string, unknown>>;
   readonly aggregatePolicyOverrides?: Readonly<Record<string, unknown>>;
+  /** Bind the jurisdiction's approved sentinel and plausibility policy to this series. */
+  readonly plausibilityPolicy?: Readonly<Record<string, unknown>>;
+}
+
+/** A synthetic approved policy naming one vendor fault marker and one range. */
+export function plausibilityPolicyInput(
+  overrides: Readonly<Record<string, unknown>> = {},
+): Record<string, unknown> {
+  return {
+    schemaVersion: 'plausibility-policy/v1',
+    policyId: 'plausibility-1',
+    version: '1',
+    sentinelLiterals: ['-9999'],
+    plausibleRanges: [
+      {
+        parameterCode: 'flow.treated.daily_avg',
+        canonicalUnit: 'canonical-unit',
+        minimum: '0',
+        maximum: '10',
+      },
+    ],
+    authorizationId: 'plausibility-review-1',
+    ...overrides,
+  };
 }
 
 export function csvBytes(...rows: readonly string[]): Uint8Array {
@@ -160,6 +184,13 @@ export function testSeriesParts(options: TestSeriesOptions = {}): TestSeriesPart
         conversionRule as unknown as ReconciledCsvSeriesInput['conversionRules'][number],
       ],
       aggregatePolicy: aggregatePolicy as unknown as ReconciledCsvSeriesInput['aggregatePolicy'],
+      ...(options.plausibilityPolicy === undefined
+        ? {}
+        : {
+            plausibilityPolicy: options.plausibilityPolicy as unknown as NonNullable<
+              ReconciledCsvSeriesInput['plausibilityPolicy']
+            >,
+          }),
       sourceObjects: options.sourceObjects ?? [defaultCsvBytes()],
     },
   };

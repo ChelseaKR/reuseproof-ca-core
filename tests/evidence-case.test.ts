@@ -44,6 +44,18 @@ import {
   testSeriesParts,
 } from './reconciled-evaluation-helpers.js';
 
+/**
+ * Schema strings no release of this library can declare.
+ *
+ * A version-refusal test has to plant a version that is *not* the real one, and planting "the
+ * next number" makes the fixture derive from the constant under test: the day the format moves
+ * to that number, the refusal stops being a refusal and the test passes because nothing was
+ * rejected. Both of these carry a suffix a release never will, and each use asserts it differs
+ * from the constant it is standing against.
+ */
+const UNRELEASED_MANIFEST_SCHEMA = 'evidence-case/v0-never-released';
+const UNRELEASED_INPUT_SCHEMA = 'evidence-case-input/v0-never-released';
+
 const parents: string[] = [];
 
 async function newParent(): Promise<string> {
@@ -468,23 +480,35 @@ describe('the manifest is the root of the chain, and its own shape is checked', 
 
   it('names both versions when the case schema is one this release does not read', async () => {
     const directory = await writeCase(reconciledEvidenceInput());
-    await restate(directory, (manifest) => ({ ...manifest, schemaVersion: 'evidence-case/v2' }));
+    // Deliberately not "the next version number": a planted value that could one day become the
+    // real one turns this test into a tautology the day the format moves, and it goes green for
+    // the wrong reason with nothing to notice. UNRELEASED_MANIFEST_SCHEMA is a string no release
+    // can carry, and the assertion below pins that it is not the real one.
+    expect(UNRELEASED_MANIFEST_SCHEMA).not.toBe(EVIDENCE_CASE_SCHEMA_VERSION);
+    await restate(directory, (manifest) => ({
+      ...manifest,
+      schemaVersion: UNRELEASED_MANIFEST_SCHEMA,
+    }));
 
     const refusal = await expectRefusal(directory, 'case_schema_version_unsupported');
-    expect(refusal.message).toContain('evidence-case/v2');
+    expect(refusal.message).toContain(UNRELEASED_MANIFEST_SCHEMA);
     expect(refusal.message).toContain(EVIDENCE_CASE_SCHEMA_VERSION);
   });
 
   it('names both versions when the input document declares another schema', async () => {
     const directory = await writeCase(reconciledEvidenceInput());
     const input = await readControl(directory, EVIDENCE_CASE_INPUT_FILE);
+    // Was `evidence-case-input/v2`, which the plausibility policy made the *real* version: the
+    // planted "other schema" became the one under test and this refusal stopped happening. Same
+    // trap as above, caught by that failure.
+    expect(UNRELEASED_INPUT_SCHEMA).not.toBe(EVIDENCE_CASE_INPUT_SCHEMA_VERSION);
     await replaceInput(
       directory,
-      canonicalJson({ ...input, schemaVersion: 'evidence-case-input/v2' }),
+      canonicalJson({ ...input, schemaVersion: UNRELEASED_INPUT_SCHEMA }),
     );
 
     const refusal = await expectRefusal(directory, 'case_schema_version_unsupported');
-    expect(refusal.message).toContain('evidence-case-input/v2');
+    expect(refusal.message).toContain(UNRELEASED_INPUT_SCHEMA);
     expect(refusal.message).toContain(EVIDENCE_CASE_INPUT_SCHEMA_VERSION);
   });
 

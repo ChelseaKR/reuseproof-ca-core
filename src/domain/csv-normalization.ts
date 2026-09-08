@@ -11,11 +11,20 @@ import {
 } from './csv-ingestion.js';
 import {
   MAX_CONVERSION_RULES,
+  compareConvertedValue,
   createNumericObservationValue,
   createUnitConversionRule,
   type NumericObservationValue,
   type UnitConversionRule,
 } from './numeric-aggregation.js';
+import {
+  applicablePlausibleRange,
+  createPlausibilityPolicy,
+  hashPlausibilityPolicy,
+  isSentinelLiteral,
+  type PlausibilityPolicy,
+  type PlausibleRange,
+} from './plausibility.js';
 import {
   createObservation,
   createRequiredSeriesContract,
@@ -73,7 +82,7 @@ export type CsvMeasurementNormalizationOutcome =
     });
 
 export interface CsvMeasurementNormalizationResult {
-  readonly schemaVersion: 'csv-measurement-normalization-result/v1';
+  readonly schemaVersion: 'csv-measurement-normalization-result/v2';
   readonly sourceDisposition: CsvIngestionResult['sourceDisposition'];
   readonly sourceRejectionReason: CsvSourceRejectionReason | null;
   readonly routing: CsvIngestionResult;
@@ -82,6 +91,8 @@ export interface CsvMeasurementNormalizationResult {
   readonly requiredSeriesContractHash: string;
   readonly mappingHash: string;
   readonly conversionRuleSetHash: string;
+  /** The bound sentinel and plausibility policy, or `null` when the series is governed by none. */
+  readonly plausibilityPolicyHash: string | null;
   readonly normalizationCandidateCount: number;
   readonly acceptedObservationCount: number;
   readonly quarantinedCandidateCount: number;
@@ -97,6 +108,7 @@ export interface CsvMeasurementNormalizationInput {
   readonly mapping: CsvMeasurementMapping;
   readonly requiredSeriesContract: RequiredSeriesContract;
   readonly conversionRules: readonly UnitConversionRule[];
+  readonly plausibilityPolicy?: PlausibilityPolicy;
 }
 
 export interface CsvMeasurementGovernanceInput {
@@ -104,16 +116,25 @@ export interface CsvMeasurementGovernanceInput {
   readonly mapping: CsvMeasurementMapping;
   readonly requiredSeriesContract: RequiredSeriesContract;
   readonly conversionRules: readonly UnitConversionRule[];
+  readonly plausibilityPolicy?: PlausibilityPolicy;
 }
 
 export interface CsvMeasurementGovernanceBinding {
-  readonly schemaVersion: 'csv-measurement-governance-binding/v1';
+  readonly schemaVersion: 'csv-measurement-governance-binding/v2';
   readonly requiredSeriesContractId: string;
   readonly requiredSeriesContractVersion: string;
   readonly requiredSeriesContractHash: string;
   readonly csvContractHash: string;
   readonly mappingHash: string;
   readonly conversionRuleSetHash: string;
+  /**
+   * The bound sentinel and plausibility policy, or `null` when the series is governed by none.
+   *
+   * Stated rather than omitted. A binding that simply left the field out when no policy applied
+   * would read the same as one produced before this library had the concept, and "no policy was
+   * approved for this series" is a fact a reader of a receipt is entitled to see.
+   */
+  readonly plausibilityPolicyHash: string | null;
   readonly governanceHash: string;
 }
 
@@ -122,6 +143,8 @@ interface NormalizedCsvMeasurementGovernance {
   readonly mapping: CsvMeasurementMapping;
   readonly requiredContract: RequiredSeriesContract;
   readonly rules: readonly UnitConversionRule[];
+  readonly plausibilityPolicy: PlausibilityPolicy | null;
+  readonly plausibleRange: PlausibleRange | null;
   readonly binding: CsvMeasurementGovernanceBinding;
 }
 
@@ -329,13 +352,43 @@ function conversionRuleSetHash(rules: readonly UnitConversionRule[]): string {
   return sha256(canonicalJson({ schemaVersion: 'unit-conversion-rule-set-binding/v1', rules }));
 }
 
+/**
+ * Reconstruct the optional plausibility policy and select the one range that governs this series.
+ *
+ * A policy is refused unless it can actually decide something here: either it declares sentinel
+ * literals, or it declares a range for exactly this parameter and canonical unit. A policy that
+ * does neither would be an approved identifier and a hash in the receipt with nothing behind it,
+ * which is a governance object shaped like a check that cannot fail.
+ */
+function normalizePlausibility(
+  value: unknown,
+  requiredContract: RequiredSeriesContract,
+): { readonly policy: PlausibilityPolicy | null; readonly range: PlausibleRange | null } {
+  if (value === undefined) {
+    return { policy: null, range: null };
+  }
+  const policy = createPlausibilityPolicy(value);
+  const range = applicablePlausibleRange(
+    policy,
+    requiredContract.parameterCode,
+    requiredContract.canonicalUnit,
+  );
+  if (policy.sentinelLiterals.length === 0 && range === null) {
+    throw new RangeError(
+      `plausibility policy ${policy.policyId} declares no sentinel literals and no plausible ` +
+        `range for parameter ${requiredContract.parameterCode} in ${requiredContract.canonicalUnit}`,
+    );
+  }
+  return { policy, range };
+}
+
 function normalizeCsvMeasurementGovernance(
   input: CsvMeasurementGovernanceInput,
 ): NormalizedCsvMeasurementGovernance {
   const outer = requireStrictRecord(
     input,
     ['csvContract', 'mapping', 'requiredSeriesContract', 'conversionRules'],
-    [],
+    ['plausibilityPolicy'],
     'csvMeasurementGovernance',
   );
   const csvContract = createCsvAdapterSourceContract(outer.csvContract);
@@ -343,25 +396,29 @@ function normalizeCsvMeasurementGovernance(
   const requiredContract = createRequiredSeriesContract(outer.requiredSeriesContract);
   validateMappingBindings(csvContract, mapping, requiredContract);
   const rules = normalizeRules(outer.conversionRules, requiredContract, mapping);
+  const { policy, range } = normalizePlausibility(outer.plausibilityPolicy, requiredContract);
   const base = {
-    schemaVersion: 'csv-measurement-governance-binding/v1' as const,
+    schemaVersion: 'csv-measurement-governance-binding/v2' as const,
     requiredSeriesContractId: requiredContract.contractId,
     requiredSeriesContractVersion: requiredContract.version,
     requiredSeriesContractHash: hashRequiredSeriesContract(requiredContract),
     csvContractHash: hashCsvAdapterSourceContract(csvContract),
     mappingHash: hashCsvMeasurementMapping(mapping),
     conversionRuleSetHash: conversionRuleSetHash(rules),
+    plausibilityPolicyHash: policy === null ? null : hashPlausibilityPolicy(policy),
   };
   return deepFreeze({
     csvContract,
     mapping,
     requiredContract,
     rules,
+    plausibilityPolicy: policy,
+    plausibleRange: range,
     binding: {
       ...base,
       governanceHash: sha256(
         canonicalJson({
-          schemaVersion: 'csv-measurement-governance-set-binding/v1',
+          schemaVersion: 'csv-measurement-governance-set-binding/v2',
           governance: base,
         }),
       ),
@@ -411,7 +468,7 @@ function withNormalizationHash(
     ...result,
     normalizationHash: sha256(
       canonicalJson({
-        schemaVersion: 'csv-measurement-normalization-binding/v1',
+        schemaVersion: 'csv-measurement-normalization-binding/v2',
         result,
       }),
     ),
@@ -428,7 +485,7 @@ export function normalizeCsvMeasurements(
   const outer = requireStrictRecord(
     input,
     ['csvContract', 'sourceBytes', 'mapping', 'requiredSeriesContract', 'conversionRules'],
-    [],
+    ['plausibilityPolicy'],
     'csvMeasurementNormalization',
   );
   const governance = normalizeCsvMeasurementGovernance({
@@ -436,8 +493,15 @@ export function normalizeCsvMeasurements(
     mapping: outer.mapping as CsvMeasurementMapping,
     requiredSeriesContract: outer.requiredSeriesContract as RequiredSeriesContract,
     conversionRules: outer.conversionRules as readonly UnitConversionRule[],
+    // Forwarded only when the caller supplied the key. Passing `plausibilityPolicy: undefined`
+    // would make it an own property of the governance input, and the reconstructor would then
+    // try to rebuild `undefined` as a policy instead of reading the series as ungoverned.
+    ...(Object.hasOwn(outer, 'plausibilityPolicy')
+      ? { plausibilityPolicy: outer.plausibilityPolicy as PlausibilityPolicy }
+      : {}),
   });
-  const { csvContract, mapping, requiredContract, rules } = governance;
+  const { csvContract, mapping, requiredContract, rules, plausibilityPolicy, plausibleRange } =
+    governance;
   if (!(outer.sourceBytes instanceof Uint8Array)) {
     throw new TypeError('csvMeasurementNormalization.sourceBytes must be a Uint8Array');
   }
@@ -446,7 +510,7 @@ export function normalizeCsvMeasurements(
   const mappingHash = governance.binding.mappingHash;
   const ruleSetHash = governance.binding.conversionRuleSetHash;
   const base = {
-    schemaVersion: 'csv-measurement-normalization-result/v1' as const,
+    schemaVersion: 'csv-measurement-normalization-result/v2' as const,
     sourceDisposition: routing.sourceDisposition,
     sourceRejectionReason: routing.reason,
     routing,
@@ -455,6 +519,7 @@ export function normalizeCsvMeasurements(
     requiredSeriesContractHash,
     mappingHash,
     conversionRuleSetHash: ruleSetHash,
+    plausibilityPolicyHash: governance.binding.plausibilityPolicyHash,
   };
   if (routing.sourceDisposition !== 'routed') {
     return withNormalizationHash({
@@ -518,6 +583,22 @@ export function normalizeCsvMeasurements(
       quarantineReason = 'impossible_unit';
     }
 
+    const sourceValue = row.values[mapping.valueField] ?? '';
+
+    // The sentinel test runs before the value is read as a number, and after the row has been
+    // shown to be governed at all. Before the parse, because a vendor's fault marker is often
+    // not a number -- `ERR`, or an empty cell -- and reporting it as `malformed_value` says the
+    // label was written wrongly when in fact it was written exactly as the vendor documents a
+    // fault. After the timestamp, range and unit decisions, because those refuse a row for
+    // reasons that do not depend on knowing what the value means.
+    if (
+      quarantineReason === null &&
+      plausibilityPolicy !== null &&
+      isSentinelLiteral(plausibilityPolicy, sourceValue)
+    ) {
+      quarantineReason = 'sensor_sentinel';
+    }
+
     let numeric: NumericObservationValue | null = null;
     if (quarantineReason === null && rule !== undefined) {
       try {
@@ -526,7 +607,7 @@ export function normalizeCsvMeasurements(
           contractId: requiredContract.contractId,
           observedAt,
           sourceFingerprint: row.rowFingerprint,
-          sourceValue: row.values[mapping.valueField] ?? '',
+          sourceValue,
           sourceUnit,
           conversionRuleId: rule.ruleId,
           conversionRuleVersion: rule.version,
@@ -537,6 +618,22 @@ export function normalizeCsvMeasurements(
           throw error;
         }
         quarantineReason = 'malformed_value';
+      }
+      // Plausibility is decided last, on the converted value, in the canonical unit the required
+      // series is reported in -- not on the vendor's number in the vendor's unit, which would
+      // mean a different rule for every source. Both bounds are inclusive: a reading exactly on
+      // an approved bound is a reading the jurisdiction said was possible. Inside this block so
+      // that the conversion rule is the one the value was built with, rather than a second
+      // lookup that could differ from it.
+      if (
+        numeric !== null &&
+        plausibleRange !== null &&
+        (compareConvertedValue(numeric, rule, plausibleRange.minimum, 'plausibleRange.minimum') <
+          0 ||
+          compareConvertedValue(numeric, rule, plausibleRange.maximum, 'plausibleRange.maximum') >
+            0)
+      ) {
+        quarantineReason = 'out_of_plausible_range';
       }
     }
 
@@ -559,7 +656,7 @@ export function normalizeCsvMeasurements(
       continue;
     }
 
-    /* v8 ignore next -- a null numeric value always sets malformed_value above. */
+    /* v8 ignore next -- every path that leaves numeric null also sets a quarantine reason. */
     if (numeric === null) {
       throw new RangeError('CSV measurement numeric normalization invariant failed');
     }

@@ -9,6 +9,7 @@ export * from './domain/json.js';
 export * from './domain/lifecycle.js';
 export * from './domain/model.js';
 export * from './domain/numeric-aggregation.js';
+export * from './domain/plausibility.js';
 export * from './domain/readiness.js';
 export * from './domain/receipt.js';
 export * from './domain/time.js';
