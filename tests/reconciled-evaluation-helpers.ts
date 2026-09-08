@@ -38,7 +38,14 @@ export interface TestSeriesOptions {
   readonly plausibilityPolicy?: Readonly<Record<string, unknown>>;
 }
 
-/** A synthetic approved policy naming one vendor fault marker and one range. */
+/**
+ * A synthetic approved policy naming one vendor fault marker, and nothing else.
+ *
+ * Deliberately carries no plausible range. A policy holding both a sentinel literal and a
+ * range that also excludes the same value cannot show which of the two refused a row: a
+ * control that disables the sentinel test leaves such a fixture green, because the range
+ * catches it anyway. Tests that need a range ask for one explicitly.
+ */
 export function plausibilityPolicyInput(
   overrides: Readonly<Record<string, unknown>> = {},
 ): Record<string, unknown> {
@@ -47,6 +54,19 @@ export function plausibilityPolicyInput(
     policyId: 'plausibility-1',
     version: '1',
     sentinelLiterals: ['-9999'],
+    plausibleRanges: [],
+    authorizationId: 'plausibility-review-1',
+    ...overrides,
+  };
+}
+
+/** The same policy shape carrying only an approved range, and no sentinel literal. */
+export function plausibleRangeOnlyPolicyInput(
+  overrides: Readonly<Record<string, unknown>> = {},
+): Record<string, unknown> {
+  return plausibilityPolicyInput({
+    policyId: 'plausibility-range-only',
+    sentinelLiterals: [],
     plausibleRanges: [
       {
         parameterCode: 'flow.treated.daily_avg',
@@ -55,9 +75,8 @@ export function plausibilityPolicyInput(
         maximum: '10',
       },
     ],
-    authorizationId: 'plausibility-review-1',
     ...overrides,
-  };
+  });
 }
 
 export function csvBytes(...rows: readonly string[]): Uint8Array {

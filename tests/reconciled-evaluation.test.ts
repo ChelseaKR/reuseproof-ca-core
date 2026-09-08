@@ -16,6 +16,7 @@ import {
   defaultCsvBytes,
   lifecycleTimeline,
   plausibilityPolicyInput,
+  plausibleRangeOnlyPolicyInput,
   reconciledEvidenceInput,
   testSeriesParts,
   type TestSeriesParts,
@@ -663,6 +664,40 @@ describe('a series governed by a sentinel and plausibility policy (#51)', () => 
     expect(governed.dailyAggregate.aggregate.values[0]?.value).toBe('1.00');
     expect(governed.reconciliation.governance.plausibilityPolicyHash).toMatch(/^[a-f0-9]{64}$/);
     expect(governed.coverageSummary.quarantineCount).toBe(1);
+    // Which rule refused it, not merely that something did. This policy declares no range, so
+    // only the sentinel comparison can produce this outcome.
+    expect(
+      governed.reconciliation.result?.outcomes
+        .filter((outcome) => outcome.kind !== 'accepted')
+        .map(({ reason }) => reason),
+    ).toEqual(['sensor_sentinel']);
+  });
+
+  it('refuses a physically impossible reading through the range alone', () => {
+    // 30 source units convert to 15 canonical, past the approved maximum of 10. No sentinel
+    // literal is declared here, so the range comparison is the only thing that can refuse it.
+    const governed = firstSeries(
+      evaluateReconciledCsvEvidence(
+        reconciledEvidenceInput([
+          testSeriesParts({
+            sourceObjects: [
+              csvBytes(
+                'a,2026-01-01T00:05:00.000Z,2,source-unit',
+                'b,2026-01-01T00:35:00.000Z,30,source-unit',
+              ),
+            ],
+            plausibilityPolicy: plausibleRangeOnlyPolicyInput(),
+          }),
+        ]),
+      ),
+    );
+
+    expect(
+      governed.reconciliation.result?.outcomes
+        .filter((outcome) => outcome.kind !== 'accepted')
+        .map(({ reason }) => reason),
+    ).toEqual(['out_of_plausible_range']);
+    expect(governed.dailyAggregate.aggregate.values[0]?.value).toBe('1.00');
   });
 
   it('lists the policy among the receipt evidence and pinned versions only when one is bound', () => {
