@@ -120,10 +120,14 @@ No version has been tagged yet.
   repository has never cut a release, and no amount of correct release metadata
   would have changed it.
 
-  The pin now names the public copy in `ChelseaKR/.github`. Diffing the two blobs
-  rather than assuming parity: they are byte-identical except that the public one
-  adds `timeout-minutes: 30` to the `authorize` job, so the move is parity plus one
-  tightening on the job that verifies the signed tag.
+  The pin now names the public copy in `ChelseaKR/.github`, at that repository's
+  signed `v1.0.0` tag. Diffing the two blobs rather than assuming parity: they are
+  byte-identical except that the public one adds `timeout-minutes: 30` to the
+  `authorize` job, so the move is parity plus one tightening on the job that
+  verifies the signed tag. Pinning a *tagged* commit rather than any passing one
+  matters beyond tidiness: a 40-hex SHA can resolve through GitHub's shared fork
+  object store without being a commit the named repository ever published, so "the
+  SHA exists" is not evidence and "the SHA is one of its tags" is.
 
   Three pieces of scaffolding existed **only** because the callee was private, and
   all three are now stale rather than merely redundant, so they go with it:

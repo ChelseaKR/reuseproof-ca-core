@@ -188,11 +188,13 @@ export async function checkWorkflowPins(directory = DEFAULT_WORKFLOW_DIR) {
       );
       continue;
     }
-    // A reusable workflow is selected by commit, not by release: `ChelseaKR/.github` publishes no
-    // tags for `release-authorize.yml`, so there is no version string a comment could
-    // name and no second fact for this gate to compare the SHA against. The SHA requirement above
-    // still applies to it. This is a carve-out by reference SHAPE, not by owner or by name, so it
-    // cannot be widened to excuse an action.
+    // A reusable workflow is selected by commit, not by release, so a `# vX.Y.Z` comment beside it
+    // is not required. It is not forbidden either, and `release.yml`'s pin carries one because
+    // `ChelseaKR/.github` does now tag that workflow -- but a reusable workflow in a repository
+    // that publishes no tags has no version string a comment could name and no second fact for
+    // this gate to compare the SHA against, which is why the requirement cannot be universal.
+    // The SHA requirement above still applies to every reference. This is a carve-out by
+    // reference SHAPE, not by owner or by name, so it cannot be widened to excuse an action.
     const isReusableWorkflow = /\/\.github\/workflows\//.test(entry.path);
     if (entry.version === '' && !isReusableWorkflow) {
       failures.push(

@@ -45,7 +45,13 @@ jobs:
     # to the private one at the SHA above except that it adds `timeout-minutes: 30`
     # to the authorize job -- verified by diffing the two blobs, not assumed -- so
     # the move is parity plus one tightening on the job that verifies the signed tag.
-    uses: ChelseaKR/.github/.github/workflows/release-authorize.yml@7be4c3e44e2acf20e8a98eeea4351c1e5d2789bc
+    #
+    # The SHA is `ChelseaKR/.github`'s signed `v1.0.0` tag, so the pin names a
+    # released commit rather than a passing one. That matters beyond tidiness: a
+    # 40-hex SHA can resolve through GitHub's shared fork object store without being
+    # a commit the named repository ever published, so "the SHA exists" is not
+    # evidence of anything and "the SHA is one of its tags" is.
+    uses: ChelseaKR/.github/.github/workflows/release-authorize.yml@7be4c3e44e2acf20e8a98eeea4351c1e5d2789bc # v1.0.0
     permissions:
       contents: read
     with:
