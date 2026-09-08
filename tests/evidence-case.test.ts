@@ -40,6 +40,7 @@ import { nonoperationInput } from './helpers.js';
 import {
   csvBytes,
   defaultCsvBytes,
+  plausibilityPolicyInput,
   reconciledEvidenceInput,
   testSeriesParts,
 } from './reconciled-evaluation-helpers.js';
@@ -160,6 +161,36 @@ describe('a case is the evaluation input, and a replay from it derives the same 
     expect(replayed.evaluationHash).toBe(original.evaluationHash);
     expect(read.schemaVersion).toBe('evidence-case-read/v1');
     expect(read.caseId).toBe(`rpc1-${read.caseHash}`);
+  });
+
+  it('carries an approved plausibility policy, so a replay refuses the same rows', async () => {
+    // A case that dropped the policy would replay a policy-governed series as an ungoverned
+    // one: the sentinel row it quarantined would be accepted, and the aggregate would differ.
+    // Found by a negative control -- removing the policy from the written case turned
+    // `npm run demo:case` red with `snapshot_id_mismatch` while every test here stayed green,
+    // because nothing in this file round-tripped a governed series.
+    const input = reconciledEvidenceInput([
+      testSeriesParts({
+        sourceObjects: [
+          csvBytes(
+            'a,2026-01-01T00:05:00.000Z,2,source-unit',
+            'b,2026-01-01T00:35:00.000Z,-9999,source-unit',
+          ),
+        ],
+        plausibilityPolicy: plausibilityPolicyInput(),
+      }),
+    ]);
+    const original = evaluateReconciledCsvEvidence(input);
+    const read = await readEvidenceCaseAtPath(await writeCase(input));
+    const replayed = evaluateReconciledCsvEvidence(read.input);
+
+    // The fixture has to be one the policy actually changes, or this proves nothing.
+    expect(original.series[0]?.coverageSummary.quarantineCount).toBe(1);
+    expect(read.input.series[0]?.plausibilityPolicy).toMatchObject({
+      policyId: 'plausibility-1',
+    });
+    expect(replayed.frozenReport.snapshotId).toBe(original.frozenReport.snapshotId);
+    expect(replayed.evaluationHash).toBe(original.evaluationHash);
   });
 
   it('returns a frozen input that shares no object with the one the case was written from', async () => {
