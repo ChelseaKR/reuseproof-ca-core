@@ -15,6 +15,8 @@ import {
   csvBytes,
   defaultCsvBytes,
   lifecycleTimeline,
+  plausibilityPolicyInput,
+  plausibleRangeOnlyPolicyInput,
   reconciledEvidenceInput,
   testSeriesParts,
   type TestSeriesParts,
@@ -629,5 +631,118 @@ describe('evaluateReconciledCsvEvidence', () => {
 
     expect(() => evaluateReconciledCsvEvidence(input)).toThrow('enumerable data property');
     expect(getterReads).toBe(0);
+  });
+});
+
+describe('a series governed by a sentinel and plausibility policy (#51)', () => {
+  const faultBytes = csvBytes(
+    'a,2026-01-01T00:05:00.000Z,2,source-unit',
+    'b,2026-01-01T00:35:00.000Z,-9999,source-unit',
+  );
+
+  it('keeps a vendor fault marker out of the aggregate and names the policy in the receipt', () => {
+    const governed = firstSeries(
+      evaluateReconciledCsvEvidence(
+        reconciledEvidenceInput([
+          testSeriesParts({
+            sourceObjects: [faultBytes],
+            plausibilityPolicy: plausibilityPolicyInput(),
+          }),
+        ]),
+      ),
+    );
+    const ungoverned = firstSeries(
+      evaluateReconciledCsvEvidence(
+        reconciledEvidenceInput([testSeriesParts({ sourceObjects: [faultBytes] })]),
+      ),
+    );
+
+    // Without the policy the fault marker is a measurement: the mean of 1 and -4999.5.
+    expect(ungoverned.dailyAggregate.aggregate.values[0]?.value).toBe('-2499.25');
+    expect(ungoverned.reconciliation.governance.plausibilityPolicyHash).toBeNull();
+
+    expect(governed.dailyAggregate.aggregate.values[0]?.value).toBe('1.00');
+    expect(governed.reconciliation.governance.plausibilityPolicyHash).toMatch(/^[a-f0-9]{64}$/);
+    expect(governed.coverageSummary.quarantineCount).toBe(1);
+    // Which rule refused it, not merely that something did. This policy declares no range, so
+    // only the sentinel comparison can produce this outcome.
+    expect(
+      governed.reconciliation.result?.outcomes
+        .filter((outcome) => outcome.kind !== 'accepted')
+        .map(({ reason }) => reason),
+    ).toEqual(['sensor_sentinel']);
+  });
+
+  it('refuses a physically impossible reading through the range alone', () => {
+    // 30 source units convert to 15 canonical, past the approved maximum of 10. No sentinel
+    // literal is declared here, so the range comparison is the only thing that can refuse it.
+    const governed = firstSeries(
+      evaluateReconciledCsvEvidence(
+        reconciledEvidenceInput([
+          testSeriesParts({
+            sourceObjects: [
+              csvBytes(
+                'a,2026-01-01T00:05:00.000Z,2,source-unit',
+                'b,2026-01-01T00:35:00.000Z,30,source-unit',
+              ),
+            ],
+            plausibilityPolicy: plausibleRangeOnlyPolicyInput(),
+          }),
+        ]),
+      ),
+    );
+
+    expect(
+      governed.reconciliation.result?.outcomes
+        .filter((outcome) => outcome.kind !== 'accepted')
+        .map(({ reason }) => reason),
+    ).toEqual(['out_of_plausible_range']);
+    expect(governed.dailyAggregate.aggregate.values[0]?.value).toBe('1.00');
+  });
+
+  it('lists the policy among the receipt evidence and pinned versions only when one is bound', () => {
+    const governed = evaluateReconciledCsvEvidence(
+      reconciledEvidenceInput([
+        testSeriesParts({
+          sourceObjects: [faultBytes],
+          plausibilityPolicy: plausibilityPolicyInput(),
+        }),
+      ]),
+    );
+    const ungoverned = evaluateReconciledCsvEvidence(
+      reconciledEvidenceInput([testSeriesParts({ sourceObjects: [faultBytes] })]),
+    );
+    const names = (result: ReconciledCsvEvidenceResult): readonly string[] => [
+      ...result.receipt.core.evidenceManifest.sourceHashes.map(({ logicalName }) => logicalName),
+      ...result.receipt.core.evidenceManifest.pinnedVersions.map(({ name }) => name),
+    ];
+
+    // A governance object that decided which readings were published, and does not appear in the
+    // receipt that lists what governed them, is enforced and invisible.
+    expect(names(governed)).toContain('governance:plausibility-policy:contract-1@1');
+    expect(names(governed)).toContain('plausibility-policy:contract-1@1');
+    // Absent, not a placeholder digest: there is no such governance object for this series.
+    expect(names(ungoverned).filter((name) => name.includes('plausibility'))).toEqual([]);
+  });
+
+  it('gives a policy-governed evaluation a different frozen report from an ungoverned one', () => {
+    const governed = evaluateReconciledCsvEvidence(
+      reconciledEvidenceInput([
+        testSeriesParts({
+          sourceObjects: [faultBytes],
+          plausibilityPolicy: plausibilityPolicyInput(),
+        }),
+      ]),
+    );
+    const widened = evaluateReconciledCsvEvidence(
+      reconciledEvidenceInput([
+        testSeriesParts({
+          sourceObjects: [faultBytes],
+          plausibilityPolicy: plausibilityPolicyInput({ policyId: 'plausibility-2' }),
+        }),
+      ]),
+    );
+
+    expect(widened.frozenReport.snapshotId).not.toBe(governed.frozenReport.snapshotId);
   });
 });

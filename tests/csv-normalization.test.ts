@@ -1,14 +1,17 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  bindCsvMeasurementGovernance,
   createCsvMeasurementMapping,
   evaluateDailyNumericAggregate,
   hashCsvMeasurementMapping,
   normalizeCsvMeasurements,
+  reconcileCsvMeasurementSources,
   type CsvAdapterSourceContract,
   type CsvMeasurementMapping,
   type CsvMeasurementNormalizationInput,
   type DailyNumericAggregateInput,
+  type PlausibilityPolicy,
   type RequiredSeriesContract,
   type UnitConversionRule,
 } from '../src/index.js';
@@ -405,5 +408,285 @@ describe('normalizeCsvMeasurements', () => {
     expect(() => normalizeCsvMeasurements({ ...valid, sourceBytes: 'csv' } as never)).toThrow(
       'Uint8Array',
     );
+  });
+});
+
+describe('governed sentinel and plausibility policy (#51)', () => {
+  const aggregatePolicy = {
+    schemaVersion: 'daily-aggregate-policy/v1',
+    policyId: 'daily-policy-1',
+    version: '1',
+    contractId: 'contract-1',
+    method: 'minimum',
+    decimalPlaces: 2,
+    roundingMode: 'half_away_from_zero',
+    timeZone: 'UTC',
+    authorizationId: 'profile-1',
+  };
+
+  function plausibilityPolicyInput(
+    overrides: Readonly<Record<string, unknown>> = {},
+  ): Record<string, unknown> {
+    return {
+      schemaVersion: 'plausibility-policy/v1',
+      policyId: 'plausibility-1',
+      version: '1',
+      sentinelLiterals: ['-9999', 'ERR', ''],
+      plausibleRanges: [
+        {
+          parameterCode: 'flow.treated.daily_avg',
+          canonicalUnit: 'canonical-unit',
+          minimum: '0',
+          maximum: '10',
+        },
+      ],
+      authorizationId: 'plausibility-review-1',
+      ...overrides,
+    };
+  }
+
+  function dailyMinimum(result: ReturnType<typeof normalizeCsvMeasurements>): string | undefined {
+    const aggregate = evaluateDailyNumericAggregate({
+      coverageEvaluation: {
+        contract: requiredContractInput(),
+        reportRange: { start: '2026-01-01T00:00:00.000Z', end: '2026-01-01T01:00:00.000Z' },
+        lifecycleState: 'in_service',
+        observations: result.observations,
+        scheduledNonoperations: [],
+      },
+      numericObservations: result.numericObservations,
+      conversionRules: [ruleInput()],
+      policy: aggregatePolicy,
+    } as unknown as DailyNumericAggregateInput);
+    return aggregate.values[0]?.value;
+  }
+
+  // The defect, stated as a measurement. The conversion rule halves the source value, so a
+  // vendor's -9999 fault marker reaches the daily minimum as -4999.50 -- a treatment plant
+  // reporting a negative flow, published as the day's lowest reading.
+  const faultSource = [
+    header,
+    'a,2026-01-01T00:05:00.000Z,2,source-unit',
+    'b,2026-01-01T00:35:00.000Z,-9999,source-unit',
+  ].join('\n');
+
+  it('publishes a vendor fault marker as the daily minimum when no policy governs the series', () => {
+    const result = normalizeCsvMeasurements(normalizationInput(faultSource));
+
+    expect(result.plausibilityPolicyHash).toBeNull();
+    expect(result.acceptedObservationCount).toBe(2);
+    expect(dailyMinimum(result)).toBe('-4999.50');
+  });
+
+  it('quarantines the same marker as sensor_sentinel once a policy governs the series', () => {
+    const result = normalizeCsvMeasurements(
+      normalizationInput(faultSource, { plausibilityPolicy: plausibilityPolicyInput() }),
+    );
+
+    expect(result.plausibilityPolicyHash).toMatch(/^[a-f0-9]{64}$/);
+    expect(result.acceptedObservationCount).toBe(1);
+    expect(
+      result.outcomes
+        .filter((outcome) => outcome.kind === 'quarantine')
+        .map(({ reason }) => reason),
+    ).toEqual(['sensor_sentinel']);
+    // Quarantined, not dropped: the row is still an observation a reader can count.
+    expect(result.observations).toHaveLength(2);
+    expect(result.observations.filter((o) => o.qualityState === 'quarantined')).toHaveLength(1);
+    expect(dailyMinimum(result)).toBe('1.00');
+  });
+
+  it('names a non-numeric fault marker as a sentinel rather than as a malformed value', () => {
+    const source = [
+      header,
+      'a,2026-01-01T00:05:00.000Z,2,source-unit',
+      'b,2026-01-01T00:35:00.000Z,ERR,source-unit',
+    ].join('\n');
+
+    const ungoverned = normalizeCsvMeasurements(normalizationInput(source));
+    const governed = normalizeCsvMeasurements(
+      normalizationInput(source, { plausibilityPolicy: plausibilityPolicyInput() }),
+    );
+
+    // Both refuse the row. Only the governed one says the vendor wrote exactly what its
+    // documentation says a faulting sensor writes, rather than that the file was malformed.
+    expect(
+      ungoverned.outcomes.filter((o) => o.kind === 'quarantine').map(({ reason }) => reason),
+    ).toEqual(['malformed_value']);
+    expect(
+      governed.outcomes.filter((o) => o.kind === 'quarantine').map(({ reason }) => reason),
+    ).toEqual(['sensor_sentinel']);
+  });
+
+  it('compares a plausible bound in the canonical unit, not in the source unit', () => {
+    // The rule converts source -> canonical by halving, and the approved maximum is 10 canonical
+    // units. A source value of 20 is therefore exactly on the bound. Comparing the source value
+    // against the same number would refuse it, which is the mistake this fixture exists to catch:
+    // 20 is twice the bound as written, and exactly the bound as measured.
+    const source = [header, 'a,2026-01-01T00:05:00.000Z,20,source-unit'].join('\n');
+    const result = normalizeCsvMeasurements(
+      normalizationInput(source, { plausibilityPolicy: plausibilityPolicyInput() }),
+    );
+
+    expect(result.acceptedObservationCount).toBe(1);
+  });
+
+  it.each([
+    ['20', 'accepted', null],
+    ['0', 'accepted', null],
+    ['20.0000000000000000001', 'quarantine', 'out_of_plausible_range'],
+    ['-0.0000000000000000001', 'quarantine', 'out_of_plausible_range'],
+    ['30', 'quarantine', 'out_of_plausible_range'],
+  ])('decides %s in exact decimal, inclusive at both bounds', (value, kind, reason) => {
+    // The two long values differ from a bound in the eighteenth decimal place. Read as a double,
+    // 20.0000000000000000001 is exactly 20 and -0.0000000000000000001 is exactly -0, so both
+    // would sit on an inclusive bound and be published as readings.
+    const source = [header, `a,2026-01-01T00:05:00.000Z,${value},source-unit`].join('\n');
+    const result = normalizeCsvMeasurements(
+      normalizationInput(source, { plausibilityPolicy: plausibilityPolicyInput() }),
+    );
+
+    expect(result.outcomes).toHaveLength(1);
+    expect(result.outcomes[0]?.kind).toBe(kind);
+    expect(result.outcomes[0]?.kind === 'quarantine' ? result.outcomes[0].reason : null).toBe(
+      reason,
+    );
+  });
+
+  it('never moves a row from quarantined to accepted, whatever the policy says', () => {
+    // The safety property that makes a policy safe to introduce: binding one can refuse readings
+    // and can rename a refusal, and can never turn a refused row into a published measurement.
+    const source = [
+      header,
+      'a,2026-01-01T00:05:00.000Z,2,source-unit',
+      'b,2026-01-01T00:35:00.000Z,-9999,source-unit',
+      'c,2026-01-01T00:45:00.000Z,bad,source-unit',
+      'd,bad-time,3,source-unit',
+      'e,2026-01-01T02:00:00.000Z,5,source-unit',
+      'f,2026-01-01T00:15:00.000Z,5,unknown-unit',
+    ].join('\n');
+    const ungoverned = normalizeCsvMeasurements(normalizationInput(source));
+    const governed = normalizeCsvMeasurements(
+      normalizationInput(source, { plausibilityPolicy: plausibilityPolicyInput() }),
+    );
+
+    expect(governed.outcomes).toHaveLength(ungoverned.outcomes.length);
+    for (const [index, before] of ungoverned.outcomes.entries()) {
+      const after = governed.outcomes[index];
+      expect(after?.rowFingerprint).toBe(before.rowFingerprint);
+      if (before.kind === 'quarantine') {
+        expect(after?.kind).toBe('quarantine');
+      }
+    }
+    expect(governed.acceptedObservationCount).toBeLessThanOrEqual(
+      ungoverned.acceptedObservationCount,
+    );
+  });
+
+  it('refuses a policy that could decide nothing about this series', () => {
+    // No sentinel literals, and a range for a parameter this contract does not report. Accepting
+    // it would put an approved policy id and hash into the receipt with nothing behind them.
+    expect(() =>
+      normalizeCsvMeasurements(
+        normalizationInput(faultSource, {
+          plausibilityPolicy: plausibilityPolicyInput({
+            sentinelLiterals: [],
+            plausibleRanges: [
+              { parameterCode: 'ph', canonicalUnit: 'su', minimum: '0', maximum: '14' },
+            ],
+          }),
+        }),
+      ),
+    ).toThrow('declares no sentinel literals and no plausible range for parameter');
+  });
+
+  it('refuses a range declared for the right parameter in the wrong canonical unit', () => {
+    expect(() =>
+      normalizeCsvMeasurements(
+        normalizationInput(faultSource, {
+          plausibilityPolicy: plausibilityPolicyInput({
+            sentinelLiterals: [],
+            plausibleRanges: [
+              {
+                parameterCode: 'flow.treated.daily_avg',
+                canonicalUnit: 'not-the-canonical-unit',
+                minimum: '0',
+                maximum: '10',
+              },
+            ],
+          }),
+        }),
+      ),
+    ).toThrow('no plausible range for parameter');
+  });
+
+  it('carries the policy into the governance binding and moves its hash with a bound', () => {
+    const base = {
+      csvContract: csvContractInput() as unknown as CsvAdapterSourceContract,
+      mapping: mappingInput() as unknown as CsvMeasurementMapping,
+      requiredSeriesContract: requiredContractInput() as unknown as RequiredSeriesContract,
+      conversionRules: [ruleInput() as unknown as UnitConversionRule],
+    };
+    const ungoverned = bindCsvMeasurementGovernance(base);
+    const governed = bindCsvMeasurementGovernance({
+      ...base,
+      plausibilityPolicy: plausibilityPolicyInput() as unknown as PlausibilityPolicy,
+    });
+    const widened = bindCsvMeasurementGovernance({
+      ...base,
+      plausibilityPolicy: plausibilityPolicyInput({
+        plausibleRanges: [
+          {
+            parameterCode: 'flow.treated.daily_avg',
+            canonicalUnit: 'canonical-unit',
+            minimum: '0',
+            maximum: '11',
+          },
+        ],
+      }) as unknown as PlausibilityPolicy,
+    });
+
+    expect(ungoverned.plausibilityPolicyHash).toBeNull();
+    expect(governed.plausibilityPolicyHash).toMatch(/^[a-f0-9]{64}$/);
+    expect(widened.plausibilityPolicyHash).not.toBe(governed.plausibilityPolicyHash);
+    // Two policies differing only in a bound must give the whole governance set two identities,
+    // or a receipt could not tell which rule produced the numbers it carries.
+    expect(widened.governanceHash).not.toBe(governed.governanceHash);
+    expect(governed.governanceHash).not.toBe(ungoverned.governanceHash);
+  });
+
+  it('refuses to reconcile two sources judged by different plausibility policies', () => {
+    const sources = [
+      normalizationInput([header, 'a,2026-01-01T00:05:00.000Z,2,source-unit'].join('\n'), {
+        plausibilityPolicy: plausibilityPolicyInput(),
+      }),
+      normalizationInput([header, 'b,2026-01-01T00:35:00.000Z,4,source-unit'].join('\n'), {
+        plausibilityPolicy: plausibilityPolicyInput({ policyId: 'plausibility-2' }),
+      }),
+    ];
+
+    expect(() => reconcileCsvMeasurementSources({ sources })).toThrow(
+      'must share identical governed contracts',
+    );
+  });
+
+  it('carries one policy through reconciliation when both sources share it', () => {
+    const policy = plausibilityPolicyInput();
+    const result = reconcileCsvMeasurementSources({
+      sources: [
+        normalizationInput([header, 'a,2026-01-01T00:05:00.000Z,2,source-unit'].join('\n'), {
+          plausibilityPolicy: policy,
+        }),
+        normalizationInput([header, 'b,2026-01-01T00:35:00.000Z,-9999,source-unit'].join('\n'), {
+          plausibilityPolicy: policy,
+        }),
+      ],
+    });
+
+    expect(result.plausibilityPolicyHash).toMatch(/^[a-f0-9]{64}$/);
+    expect(result.acceptedIdentityCount).toBe(1);
+    expect(
+      result.outcomes.filter((o) => o.kind === 'quarantine').map(({ reason }) => reason),
+    ).toEqual(['sensor_sentinel']);
   });
 });

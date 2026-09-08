@@ -10,7 +10,7 @@ import type {
   LifecycleExcludedInterval,
 } from './coverage.js';
 import type { LifecycleBasis } from './lifecycle.js';
-import { createTimeRange, lifecycleStates, type TimeRange } from './model.js';
+import { QUARANTINE_REASONS, createTimeRange, lifecycleStates, type TimeRange } from './model.js';
 import { createReportTimeBasis } from './time.js';
 import { requireStrictArray, requireStrictRecord } from './validation.js';
 
@@ -281,12 +281,11 @@ const duplicateReasons = [
   'replayed_fingerprint',
   'superseded',
 ] as const;
+// The observation-level reasons, plus the two a coverage evaluation can decide on its own.
+// Derived from QUARANTINE_REASONS rather than retyped, so a reason added to the domain
+// vocabulary cannot become one this reconstructor refuses to read back.
 const quarantineReasons = [
-  'ambiguous_timestamp',
-  'conflicting_duplicate',
-  'impossible_unit',
-  'malformed_value',
-  'unmapped_value',
+  ...QUARANTINE_REASONS,
   'contract_mismatch',
   'outside_expected_range',
 ] as const;

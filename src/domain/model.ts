@@ -53,12 +53,25 @@ export interface VendorMapping {
   readonly sourceUnit: string;
 }
 
-export type QuarantineReason =
-  | 'ambiguous_timestamp'
-  | 'conflicting_duplicate'
-  | 'impossible_unit'
-  | 'malformed_value'
-  | 'unmapped_value';
+/**
+ * Every reason an observation may be held back from the accepted set.
+ *
+ * Declared once, as data, because this list used to exist twice — as a union type and as a
+ * runtime array inside `createObservation` — and the two could drift with nothing to notice.
+ * `QuarantineReason` is derived from these values, so a reason added here is accepted by the
+ * reconstructor and a reason removed here stops type-checking at every use.
+ */
+export const QUARANTINE_REASONS = [
+  'ambiguous_timestamp',
+  'conflicting_duplicate',
+  'impossible_unit',
+  'malformed_value',
+  'out_of_plausible_range',
+  'sensor_sentinel',
+  'unmapped_value',
+] as const;
+
+export type QuarantineReason = (typeof QUARANTINE_REASONS)[number];
 
 interface ObservationBase {
   readonly observationId: string;
@@ -332,13 +345,7 @@ export function createObservation(value: unknown): Observation {
   }
   const hasQuarantineReason = Object.hasOwn(record, 'quarantineReason');
   const hasSupersededBy = Object.hasOwn(record, 'supersededBy');
-  const quarantineReasons: readonly QuarantineReason[] = [
-    'ambiguous_timestamp',
-    'conflicting_duplicate',
-    'impossible_unit',
-    'malformed_value',
-    'unmapped_value',
-  ];
+  const quarantineReasons: readonly QuarantineReason[] = QUARANTINE_REASONS;
   if (
     record.qualityState === 'quarantined' &&
     (!hasQuarantineReason ||

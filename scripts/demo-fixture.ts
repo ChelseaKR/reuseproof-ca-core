@@ -36,7 +36,7 @@ export function reconciledFixtureInput(value: unknown): ReconciledCsvEvidenceInp
           'aggregatePolicy',
           'sourceObjectsUtf8',
         ],
-        [],
+        ['plausibilityPolicy'],
         label,
       );
       const sourceObjects = requireStrictArray(

@@ -80,6 +80,7 @@ import {
   type CsvMeasurementMapping,
 } from './domain/csv-normalization.js';
 import { parseBoundedJson, type JsonParseLimits } from './domain/json.js';
+import { createPlausibilityPolicy, type PlausibilityPolicy } from './domain/plausibility.js';
 import { createLifecycleTimeline, type LifecycleTimeline } from './domain/lifecycle.js';
 import {
   createRequiredSeriesContract,
@@ -110,7 +111,7 @@ import {
 /** The case format this release writes, and the only one it reads. */
 export const EVIDENCE_CASE_SCHEMA_VERSION = 'evidence-case/v1';
 /** The input document's own version, carried separately so it can move on its own. */
-export const EVIDENCE_CASE_INPUT_SCHEMA_VERSION = 'evidence-case-input/v1';
+export const EVIDENCE_CASE_INPUT_SCHEMA_VERSION = 'evidence-case-input/v2';
 /** The case manifest: its bytes are what the case ID is derived from. */
 export const EVIDENCE_CASE_MANIFEST_FILE = 'evidence-case.json';
 /** Every governance object of the input, with sources as ordered digest references. */
@@ -280,6 +281,15 @@ interface CaseSeriesDocument {
   readonly mapping: CsvMeasurementMapping;
   readonly conversionRules: readonly UnitConversionRule[];
   readonly aggregatePolicy: DailyAggregatePolicy;
+  /**
+   * The series' approved sentinel and plausibility policy, present only when it has one.
+   *
+   * A case that omitted it would replay a policy-governed series as an ungoverned one: the
+   * sentinel rows the original evaluation quarantined would be accepted on replay, the
+   * aggregate would differ, and the integrity check would report a divergence whose cause was
+   * the case format rather than the bytes. `v2` of this document exists for this field.
+   */
+  readonly plausibilityPolicy?: PlausibilityPolicy;
   readonly sourceObjects: readonly CaseSourceReference[];
 }
 
@@ -315,6 +325,9 @@ const CASE_SERIES_FIELDS: readonly string[] = Object.freeze([
   'aggregatePolicy',
   'sourceObjects',
 ]);
+
+/** Series fields a case may carry but need not. */
+const CASE_SERIES_OPTIONAL_FIELDS: readonly string[] = Object.freeze(['plausibilityPolicy']);
 
 function requiredText(value: unknown, label: string): string {
   if (typeof value !== 'string' || value.trim() === '') {
@@ -398,6 +411,9 @@ function caseDocument(
         mapping: createCsvMeasurementMapping(item.mapping),
         conversionRules: sortedConversionRules(item.conversionRules, `${label}.conversionRules`),
         aggregatePolicy: createDailyAggregatePolicy(item.aggregatePolicy),
+        ...(item.plausibilityPolicy === undefined
+          ? {}
+          : { plausibilityPolicy: createPlausibilityPolicy(item.plausibilityPolicy) }),
         sourceObjects,
       };
     })
@@ -828,7 +844,7 @@ function readCaseSeries(
     const label = `${EVIDENCE_CASE_INPUT_FILE}.series[${index.toString()}]`;
     let item: Record<string, unknown>;
     try {
-      item = requireStrictRecord(entry, CASE_SERIES_FIELDS, [], label);
+      item = requireStrictRecord(entry, CASE_SERIES_FIELDS, CASE_SERIES_OPTIONAL_FIELDS, label);
     } catch (error) {
       reader.refuse('case_input_shape_invalid', (error as Error).message);
     }
@@ -865,6 +881,9 @@ function readCaseSeries(
         mapping: createCsvMeasurementMapping(item.mapping),
         conversionRules: sortedConversionRules(item.conversionRules, `${label}.conversionRules`),
         aggregatePolicy: createDailyAggregatePolicy(item.aggregatePolicy),
+        ...(item.plausibilityPolicy === undefined
+          ? {}
+          : { plausibilityPolicy: createPlausibilityPolicy(item.plausibilityPolicy) }),
         sourceObjects,
       };
     } catch (error) {

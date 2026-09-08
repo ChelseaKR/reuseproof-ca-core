@@ -372,6 +372,39 @@ function convert(value: NumericObservationValue, rule: UnitConversionRule): Rati
   });
 }
 
+/**
+ * Exactly compare two plain base-10 decimal strings.
+ *
+ * Exposed so a governed bound can be checked against another governed bound — an inverted
+ * plausible range, say — using the same arithmetic the aggregate uses, rather than a second
+ * implementation that could disagree with it. Both operands are validated; a value that is
+ * not a plain decimal raises rather than comparing as something else.
+ */
+export function compareDecimalStrings(left: string, right: string, label: string): number {
+  return compareRational(
+    decimalToRational(parseDecimal(left, label)),
+    decimalToRational(parseDecimal(right, label)),
+  );
+}
+
+/**
+ * Exactly compare one observation's converted value against a plain decimal bound.
+ *
+ * The comparison happens in the series' canonical unit, on the value this same module would
+ * aggregate, using the same `convert`. A bound checked against the *source* value would mean
+ * something different for every source unit, and a bound checked through a float would make
+ * an inclusive boundary a matter of representation. Neither is a rule a jurisdiction could
+ * have approved.
+ */
+export function compareConvertedValue(
+  value: NumericObservationValue,
+  rule: UnitConversionRule,
+  bound: string,
+  label: string,
+): number {
+  return compareRational(convert(value, rule), decimalToRational(parseDecimal(bound, label)));
+}
+
 function aggregate(values: readonly Rational[], method: DailyAggregateMethod): Rational {
   const first = values[0];
   /* v8 ignore next -- callers construct each bucket from at least one accepted observation. */

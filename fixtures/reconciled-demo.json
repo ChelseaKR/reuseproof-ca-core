@@ -3,7 +3,9 @@
     "start": "2026-01-01T00:00:00.000Z",
     "end": "2026-01-01T01:00:00.000Z"
   },
-  "reportTimeBasis": { "kind": "utc" },
+  "reportTimeBasis": {
+    "kind": "utc"
+  },
   "lifecycleState": "in_service",
   "contracts": [
     {
@@ -83,10 +85,22 @@
           "delimiter": ","
         },
         "columns": [
-          { "sourceName": "id", "requiredInSourceRow": true },
-          { "sourceName": "observed_at", "requiredInSourceRow": true },
-          { "sourceName": "value", "requiredInSourceRow": true },
-          { "sourceName": "unit", "requiredInSourceRow": true }
+          {
+            "sourceName": "id",
+            "requiredInSourceRow": true
+          },
+          {
+            "sourceName": "observed_at",
+            "requiredInSourceRow": true
+          },
+          {
+            "sourceName": "value",
+            "requiredInSourceRow": true
+          },
+          {
+            "sourceName": "unit",
+            "requiredInSourceRow": true
+          }
         ],
         "identityFields": ["id", "observed_at"],
         "informationalDeliveryCadence": "synthetic half-hour export",
@@ -110,7 +124,10 @@
         "requiredSeriesContractVersion": "1",
         "observedAtField": "observed_at",
         "valueField": "value",
-        "unit": { "kind": "column", "field": "unit" },
+        "unit": {
+          "kind": "column",
+          "field": "unit"
+        },
         "timestampFormat": "fixed_millisecond_utc",
         "authorizationId": "synthetic-mapping-review-flow"
       },
@@ -143,9 +160,24 @@
         "timeZone": "UTC",
         "authorizationId": "synthetic-aggregate-review-flow"
       },
+      "plausibilityPolicy": {
+        "schemaVersion": "plausibility-policy/v1",
+        "policyId": "flow-sentinels-and-bounds",
+        "version": "1",
+        "sentinelLiterals": ["", "-9999", "ERR", "NaN"],
+        "plausibleRanges": [
+          {
+            "parameterCode": "flow.treated.daily_avg",
+            "canonicalUnit": "gal/day",
+            "minimum": "0",
+            "maximum": "100000"
+          }
+        ],
+        "authorizationId": "synthetic-plausibility-review-flow"
+      },
       "sourceObjectsUtf8": [
-        "id,observed_at,value,unit\nflow-1,2026-01-01T00:05:00.000Z,120,gpd\nflow-2,2026-01-01T00:35:00.000Z,180,gpd\n",
-        "id,observed_at,value,unit\nflow-1,2026-01-01T00:05:00.000Z,120,gpd\nflow-2,2026-01-01T00:35:00.000Z,180,gpd\n"
+        "id,observed_at,value,unit\nflow-1,2026-01-01T00:05:00.000Z,120,gpd\nflow-2,2026-01-01T00:35:00.000Z,180,gpd\nflow-3,2026-01-01T00:32:00.000Z,-9999,gpd\n",
+        "id,observed_at,value,unit\nflow-1,2026-01-01T00:05:00.000Z,120,gpd\nflow-2,2026-01-01T00:35:00.000Z,180,gpd\nflow-3,2026-01-01T00:32:00.000Z,-9999,gpd\n"
       ]
     },
     {
@@ -170,10 +202,22 @@
           "delimiter": ","
         },
         "columns": [
-          { "sourceName": "id", "requiredInSourceRow": true },
-          { "sourceName": "observed_at", "requiredInSourceRow": true },
-          { "sourceName": "value", "requiredInSourceRow": true },
-          { "sourceName": "unit", "requiredInSourceRow": true }
+          {
+            "sourceName": "id",
+            "requiredInSourceRow": true
+          },
+          {
+            "sourceName": "observed_at",
+            "requiredInSourceRow": true
+          },
+          {
+            "sourceName": "value",
+            "requiredInSourceRow": true
+          },
+          {
+            "sourceName": "unit",
+            "requiredInSourceRow": true
+          }
         ],
         "identityFields": ["id", "observed_at"],
         "informationalDeliveryCadence": "synthetic half-hour export",
@@ -197,7 +241,10 @@
         "requiredSeriesContractVersion": "1",
         "observedAtField": "observed_at",
         "valueField": "value",
-        "unit": { "kind": "column", "field": "unit" },
+        "unit": {
+          "kind": "column",
+          "field": "unit"
+        },
         "timestampFormat": "fixed_millisecond_utc",
         "authorizationId": "synthetic-mapping-review-residual"
       },
