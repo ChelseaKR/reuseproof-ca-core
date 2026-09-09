@@ -157,6 +157,13 @@ export interface VerifiedArtifactLine {
   readonly sha256: string;
 }
 
+/** What the anchored read-back of `report-freeze.json` recovers. */
+export interface VerifiedCoreReadback {
+  /** The frozen report core's own `schemaVersion` -- the artifact generation these bytes are. */
+  readonly artifactSchemaVersion: string;
+  readonly artifacts: readonly VerifiedArtifactLine[];
+}
+
 /** The bundle stopped being the bundle that verified. Never a partial pass. */
 export class BundleChangedError extends Error {}
 
@@ -168,10 +175,16 @@ export class BundleChangedError extends Error {}
  * snapshot ID is derived from `report-freeze.json`'s own bytes, so requiring it to equal the
  * one verification returned proves this is the same file that was verified. A bundle edited
  * between the two reads fails here rather than being printed as verified.
+ *
+ * It also recovers the core's own `schemaVersion`. That is the artifact generation these
+ * bytes belong to, and a snapshot mismatch cannot be read without it: a recorded snapshot ID
+ * is an opaque digest carrying no version, so "this is a different bundle" and "this is the
+ * same evaluation rendered by a version of this library that does not emit these bytes" are
+ * the same refusal unless the version in front of us is named. See ADR-0015.
  */
 export async function readVerifiedManifest(
   verified: VerifiedFrozenReportBundle,
-): Promise<readonly VerifiedArtifactLine[]> {
+): Promise<VerifiedCoreReadback> {
   const bytes = await readFile(join(verified.bundleDirectory, 'report-freeze.json'));
   let text: string;
   try {
@@ -183,11 +196,17 @@ export async function readVerifiedManifest(
     throw new BundleChangedError('report-freeze.json changed between verification and read-back');
   }
   const core = parseBoundedJson(text);
+  const schemaVersion = (core as Record<string, unknown>).schemaVersion;
+  if (typeof schemaVersion !== 'string' || schemaVersion === '') {
+    // Never a fallback string. An unnamed generation reported as some default would put a
+    // version this bundle does not claim into a refusal a reader acts on.
+    throw new BundleChangedError('report-freeze.json carries no artifact schema version');
+  }
   const manifest = (core as Record<string, unknown>).renderManifest;
   if (!Array.isArray(manifest)) {
     throw new BundleChangedError('report-freeze.json carries no render manifest');
   }
-  return manifest.map((entry) => {
+  const artifacts = manifest.map((entry) => {
     const item = entry as Record<string, unknown>;
     if (
       typeof item.logicalFilename !== 'string' ||
@@ -202,6 +221,7 @@ export async function readVerifiedManifest(
       sha256: item.sha256,
     });
   });
+  return Object.freeze({ artifactSchemaVersion: schemaVersion, artifacts });
 }
 
 function verifiedLines(
@@ -230,6 +250,22 @@ function verifiedLines(
 export function describeThrown(thrown: unknown, fallback: string): string {
   return thrown instanceof Error ? thrown.message : fallback;
 }
+
+/**
+ * What a snapshot mismatch can mean, said out loud because the exit code cannot say it.
+ *
+ * A recorded snapshot ID is an opaque digest and carries no version, so this command cannot
+ * know which of the two happened -- and it does not guess. It names the artifact generation
+ * of the bundle it was handed, which is the fact it has, and names the other possibility so a
+ * reader is not sent to the wrong conclusion. ADR-0015 states which half of a recorded
+ * identifier survives an artifact-version change.
+ */
+export const MISMATCH_CAUSES =
+  'this is either a different bundle, or the same evaluation rendered by a version of this\n' +
+  'library that does not emit these bytes. The artifact-version above is the generation of\n' +
+  'the bundle you handed this command; a recorded snapshot ID carries no version, so which\n' +
+  'of the two it is cannot be decided from the ID alone. See docs/adr/0015-artifact-version\n' +
+  '-stability-and-recorded-identifiers.md.\n';
 
 function refusalLine(fields: Readonly<Record<string, string | number>>): string {
   return Object.entries(fields)
@@ -306,9 +342,9 @@ export async function runVerify(
     return EXIT_INTERNAL;
   }
 
-  let artifacts: readonly VerifiedArtifactLine[];
+  let readback: VerifiedCoreReadback;
   try {
-    artifacts = await readVerifiedManifest(verified);
+    readback = await readVerifiedManifest(verified);
   } catch (thrown) {
     err(
       `${refusalLine({
@@ -322,7 +358,7 @@ export async function runVerify(
   }
 
   if (options.printOnly) {
-    out(`${verifiedLines(verified, artifacts).join('\n')}\n`);
+    out(`${verifiedLines(verified, readback.artifacts).join('\n')}\n`);
     out('not compared: no --expect-snapshot was given, so this bundle was checked only\n');
     out('against itself. An unsigned bundle can be regenerated whole; a snapshot ID you\n');
     out('recorded elsewhere is what makes this evidence.\n');
@@ -342,6 +378,7 @@ export async function runVerify(
             bundleDirectory: directory,
             expectedSnapshotId: options.expectSnapshot,
             actualSnapshotId: verified.snapshotId,
+            artifactSchemaVersion: readback.artifactSchemaVersion,
             exit: EXIT_SNAPSHOT_MISMATCH,
           },
           null,
@@ -356,8 +393,10 @@ export async function runVerify(
         bundle: directory,
         expected: options.expectSnapshot ?? '',
         actual: verified.snapshotId,
+        'artifact-version': readback.artifactSchemaVersion,
       })}\n`,
     );
+    err(MISMATCH_CAUSES);
     return EXIT_SNAPSHOT_MISMATCH;
   }
 
@@ -365,7 +404,7 @@ export async function runVerify(
     out(`${JSON.stringify(verified, null, 2)}\n`);
     return EXIT_VERIFIED;
   }
-  out(`${verifiedLines(verified, artifacts).join('\n')}\n`);
+  out(`${verifiedLines(verified, readback.artifacts).join('\n')}\n`);
   out(`verified ${verified.claim}\n`);
   out(`verified snapshot-id matches the recorded ${options.expectSnapshot}\n`);
   for (const limitation of verified.limitations) {

@@ -8,6 +8,61 @@ No version has been tagged yet.
 
 ## [Unreleased]
 
+### Added
+
+- **An artifact test-vector corpus, and the stability policy it enforces
+  ([ADR-0015](docs/adr/0015-artifact-version-stability-and-recorded-identifiers.md)).**
+  Every identifier this library issues is a hash of bytes it renders, and
+  `bin/reuseproof-verify.js` requires `--expect-snapshot` precisely because
+  those identifiers are meant to be recorded elsewhere, independently, when a
+  bundle is issued. Nothing stated what became of a recorded identifier when
+  the library changed. A whitespace change in `report-render.ts`, one added
+  field in the report content projection, or a different canonical ordering
+  moves the bytes and therefore every identifier derived from them, and the
+  only way to learn that was for a jurisdiction to try to verify a bundle and
+  be told it did not match.
+
+  `vectors/` records a frozen input and the exact bytes the evaluation emitted
+  for it. `npm run check:vectors` -- the eleventh step of `make verify` --
+  re-derives those bytes from the vector's own input and fails naming the
+  artifact and both digests when anything moves. Measured on this repository's
+  shipped fixture: the evaluation emits **8 files across 14 artifact-schema
+  versions**, and every one of the eight is an input to at least one published
+  identifier. None of them was compared to anything before this.
+
+  The corpus fails closed in three states that each pass every comparison the
+  checker makes, because it makes none: an empty corpus, a vector recording no
+  file, and a corpus in which every vector is superseded. The third is the one
+  the design exists for -- bumping an artifact version supersedes every
+  existing vector at once, and a corpus of nothing but superseded vectors
+  re-derives nothing while printing a green line (ADR-0011).
+
+  A deliberate byte change is accepted only as **both** halves: an
+  artifact-schema version bump and a new vector recorded beside the old one,
+  which is retained as the record of the previous generation. Recording is
+  `write-vector`, a maintainer act, and deliberately not something `make
+  verify` can do -- a gate that repairs what it checks cannot fail.
+
+### Changed
+
+- **`reuseproof-verify` names the artifact generation it read when a snapshot
+  does not match.** `snapshot_id_mismatch` said only which identifier was
+  expected and which was found, and that message reads identically whether the
+  reader was handed a *different bundle* or the *same evaluation rendered by a
+  later version of this library*. Those are opposite facts leading to opposite
+  actions. The refusal now carries `artifact-version=` from the frozen report
+  core it verified, plus one sentence naming the second cause -- and it does
+  not guess between them, because a recorded snapshot ID is an opaque digest
+  carrying no version. ADR-0015 states which half of a recorded identifier
+  survives a version change: the bundle-integrity half does, the
+  reproduce-it-from-the-inputs half does not.
+
+- **`DEFINITION_OF_DONE.md` lists the gate steps that actually run.** Its
+  numbered list stopped at workflow action pins while `make verify` had also
+  been running `npm run check:concurrency` since #52. Found while adding the
+  eleventh step; the omission was documentation drift only, and no gate
+  behaviour changed.
+
 ### Fixed
 
 - **A vendor's sensor-fault marker was published as a measurement.** A CSV cell

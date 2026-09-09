@@ -15,8 +15,10 @@ A change is mergeable only when the single repository gate, `make verify`, passe
    every command this package publishes against the artifacts that demo produces — a `bin`
    that no gate step runs is a claim rather than a check;
 7. a blocking high-severity `npm audit`;
-8. source-marker hygiene; and
-9. workflow action pins, including that an action whose runtime image is selected by an input has that input equal to the version its SHA is pinned at.
+8. source-marker hygiene;
+9. workflow action pins, including that an action whose runtime image is selected by an input has that input equal to the version its SHA is pinned at;
+10. workflow concurrency, so no commit can land with no verdict of its own; and
+11. the artifact test vectors, which re-derive every artifact a frozen input emits and fail naming the artifact and both digests when a published byte moves (ADR-0015).
 
 The CI workflow may set up the pinned runtime and cache, but it calls only `make verify` for repository validation so CI and local behavior cannot drift.
 

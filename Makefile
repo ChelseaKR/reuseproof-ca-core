@@ -13,3 +13,4 @@ verify:
 	npm run hygiene
 	npm run check:pins
 	npm run check:concurrency
+	npm run check:vectors

@@ -10,7 +10,7 @@ Run the synthetic local slice (everything is local; no credentials, no network w
 
 ```sh
 npm ci          # install pinned dependencies
-make verify     # format check + lint + typecheck + tests with coverage + build + demo + audit + hygiene + workflow pins (CI parity)
+make verify     # format check + lint + typecheck + tests with coverage + build + demo + audit + hygiene + workflow pins + artifact test vectors (CI parity)
 npm run demo    # synthetic exact CSV → reconciliation → coverage/winner aggregation → receipt → frozen draft
 ```
 
@@ -210,6 +210,9 @@ The product never resolves that legal-text tension on its own.
 | [ADR-0010](docs/adr/0010-accepted-codeql-findings-register.md) | Accepted-CodeQL-findings register and a cache-free default branch |
 | [ADR-0011](docs/adr/0011-gates-that-cannot-report-an-empty-check.md) | No gate may report success for a check it did not perform |
 | [ADR-0012](docs/adr/0012-gate-codeql-on-the-weakness-severity.md) | CodeQL gates on the weakness's CVSS score as well as the query's severity |
+| [ADR-0013](docs/adr/0013-serialized-evaluation-input-and-replay.md) | Serialized evaluation input (`evidence-case/v1`) and replay from it |
+| [ADR-0014](docs/adr/0014-governed-sentinel-and-plausibility-policy.md) | Governed sentinel literals and plausible ranges, so a fault marker is never a measurement |
+| [ADR-0015](docs/adr/0015-artifact-version-stability-and-recorded-identifiers.md) | Artifact-version stability, the test-vector corpus, and what a recorded identifier survives |
 | [improvement-plan](docs/plans/improvement-plan.md) | CI failure diagnosis, ranked findings, and what remains blocked |
 
 ## Working principles
@@ -287,7 +290,7 @@ standards. Applicability and current state:
 | Standard | Applies? | State |
 |---|---|---|
 | Responsible-Tech Framework | Applies | Applies — governance, claims and safety-case posture in [07-GOVERNANCE-LEGAL-SAFETY](docs/07-GOVERNANCE-LEGAL-SAFETY.md) and the Working principles above |
-| Code Quality | Applies | Applies — Prettier + ESLint (zero warnings) + strict `tsc` + Vitest + demo execution + marker hygiene, all in `make verify`; no gate may report success for a check it did not perform ([ADR-0011](docs/adr/0011-gates-that-cannot-report-an-empty-check.md)) |
+| Code Quality | Applies | Applies — Prettier + ESLint (zero warnings) + strict `tsc` + Vitest + demo execution + marker hygiene + artifact test vectors, all in `make verify`; no gate may report success for a check it did not perform ([ADR-0011](docs/adr/0011-gates-that-cannot-report-an-empty-check.md)), and a published byte cannot move without an artifact-version bump and a new vector ([ADR-0015](docs/adr/0015-artifact-version-stability-and-recorded-identifiers.md)) |
 | Security & Supply-Chain | Applies | Applies — SHA-pinned Actions (enforced by `npm run check:pins`, which also holds the TruffleHog `version:` input to the version its SHA is pinned at), CodeQL, TruffleHog weekly full-history sweep, gitleaks pre-commit, `npm audit` in the merge gate, Dependabot; threat model in [06-SECURITY-PRIVACY-THREAT-MODEL](docs/06-SECURITY-PRIVACY-THREAT-MODEL.md) |
 | CI/CD | Applies | Partly — `ci.yml` runs the literal `make verify` merge gate, with scoped permissions and concurrency on every workflow. **Gap:** the `codeql` jobs are not required status checks on `main`, so a CodeQL failure does not block a merge; see F1 in [docs/plans/improvement-plan.md](docs/plans/improvement-plan.md) |
 | Observability | Applies | Applies at library tier — deterministic, content-addressed artifacts and explicit outcome taxonomies are the current observability surface; SLOs/runbooks planned in [10-OPERATIONS-SRE](docs/10-OPERATIONS-SRE.md) for the hosted app |
