@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ReuseProof CA evidence coverage draft</title>
+  <style>
+    :root { color-scheme: light dark; font-family: system-ui, sans-serif; line-height: 1.5; }
+    body { margin: 0 auto; max-width: 80rem; padding: 1rem; }
+    .skip-link { left: -10000px; position: absolute; }
+    .skip-link:focus { left: 1rem; top: 1rem; }
+    .status, .limitation { border: 0.2rem solid currentColor; padding: 0.75rem; }
+    .table-region { overflow-x: auto; }
+    table { border-collapse: collapse; width: 100%; }
+    caption { font-weight: 700; text-align: left; }
+    th, td { border: 0.1rem solid currentColor; padding: 0.5rem; text-align: left; vertical-align: top; }
+    code { overflow-wrap: anywhere; }
+    @media (max-width: 40rem) { body { padding: 0.5rem; } th, td { padding: 0.3rem; } }
+    @media print { .skip-link { display: none; } body { max-width: none; } }
+    @media (forced-colors: active) { .status, .limitation, th, td { border-color: CanvasText; } }
+  </style>
+</head>
+<body>
+  <a class="skip-link" href="#report-content">Skip to report content</a>
+  <header>
+    <h1>Evidence coverage draft</h1>
+    <p class="status"><strong>Draft—not submitted; human review required</strong></p>
+  </header>
+  <main id="report-content">
+    <section aria-labelledby="report-scope-heading">
+      <h2 id="report-scope-heading">Report scope</h2>
+      <dl>
+        <dt>Tenant</dt><dd>jurisdiction-demo</dd>
+        <dt>System</dt><dd>system-demo-01</dd>
+        <dt>Period start (UTC)</dt><dd><time datetime="2026-01-01T00:00:00.000Z">2026-01-01T00:00:00.000Z</time></dd>
+        <dt>Period end (UTC, exclusive)</dt><dd><time datetime="2026-01-01T01:00:00.000Z">2026-01-01T01:00:00.000Z</time></dd>
+        <dt>Data-coverage preflight</dt><dd>blocked</dd>
+        <dt>Report content SHA-256</dt><dd><code>a967548a035c646356290fec8dbfd8c6e2601e3e29eeb4d2113f1668bf146aa6</code></dd>
+      </dl>
+    </section>
+    <section aria-labelledby="coverage-heading">
+      <h2 id="coverage-heading">Required-series coverage</h2>
+      <p>Gaps are explicit. Duplicate and quarantined observations do not increase accepted coverage.</p>
+      <div class="table-region" role="region" aria-label="Required-series coverage table" tabindex="0">
+        <table>
+          <caption>Coverage by immutable required-series contract</caption>
+          <thead>
+            <tr>
+              <th scope="col">Contract</th>
+              <th scope="col">Version</th>
+              <th scope="col">Parameter</th>
+              <th scope="col">Statistic</th>
+              <th scope="col">Canonical unit</th>
+              <th scope="col">Source time zone</th>
+              <th scope="col">Report time zone</th>
+              <th scope="col">Coverage</th>
+              <th scope="col">Accepted</th>
+              <th scope="col">Expected</th>
+              <th scope="col">Gaps</th>
+              <th scope="col">Duplicates</th>
+              <th scope="col">Quarantined</th>
+            </tr>
+          </thead>
+          <tbody>
+        <tr>
+          <th scope="row">rsc-flow-001</th>
+          <td>1</td>
+          <td>flow.treated.daily_avg</td>
+          <td>interval_observation</td>
+          <td>gal/day</td>
+          <td>UTC</td>
+          <td>UTC</td>
+          <td>2 of 2 expected intervals</td>
+          <td>2</td>
+          <td>2</td>
+          <td>0</td>
+          <td>0</td>
+          <td>1</td>
+        </tr>
+        <tr>
+          <th scope="row">rsc-residual-001</th>
+          <td>1</td>
+          <td>residual.chlorine</td>
+          <td>interval_observation</td>
+          <td>mg/L</td>
+          <td>UTC</td>
+          <td>UTC</td>
+          <td>0 of 2 expected intervals</td>
+          <td>0</td>
+          <td>2</td>
+          <td>2</td>
+          <td>0</td>
+          <td>0</td>
+        </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+    <section aria-labelledby="meaning-heading">
+      <h2 id="meaning-heading">What this artifact means</h2>
+      <p><strong>Claim:</strong> evidence assembled.</p>
+      <p class="limitation"><strong>Limitation:</strong> not a compliance, safety, water-quality, engineering, laboratory-quality, legal-sufficiency, regulatory-filing, or approval determination.</p>
+      <p>This unsigned artifact cannot be submitted by ReuseProof CA and is not a certificate or signature.</p>
+    </section>
+  </main>
+  <footer>
+    <p>Generated deterministically from the canonical report-content projection.</p>
+  </footer>
+</body>
+</html>

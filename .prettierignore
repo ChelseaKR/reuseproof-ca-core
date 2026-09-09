@@ -3,3 +3,9 @@ dist
 node_modules
 package-lock.json
 *.md
+
+# Recorded artifact bytes. A vector is the exact output this library emitted on the
+# day it was recorded, so a formatter that rewrote one would make the corpus agree
+# with a change it exists to refuse -- and would do it before `check:vectors` ever
+# ran, because `format:check` is the first step of `make verify`.
+vectors

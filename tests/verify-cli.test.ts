@@ -220,8 +220,25 @@ describe('reuseproof-verify never prints a partial verification', () => {
       bundleDirectory: directory,
       expectedSnapshotId: 'rpf1-nope',
       actualSnapshotId: snapshot,
+      artifactSchemaVersion: 'frozen-report-core/v1',
       exit: EXIT_SNAPSHOT_MISMATCH,
     });
+  });
+
+  it('names the artifact generation it read, and both causes a mismatch can have', async () => {
+    const { directory } = await writeBundle();
+
+    const run = await invoke(directory, '--expect-snapshot', 'rpf1-nope');
+
+    expect(run.code).toBe(EXIT_SNAPSHOT_MISMATCH);
+    expect(run.out).toBe('');
+    // The machine-readable line carries the generation of the bundle in front of it, and the
+    // prose beneath it names the second cause. A recorded snapshot ID is an opaque digest
+    // with no version in it, so without both halves "you were handed a different bundle" and
+    // "this library no longer emits these bytes" are the same refusal (ADR-0015).
+    expect(run.err).toContain('artifact-version=frozen-report-core/v1');
+    expect(run.err).toContain('a version of this');
+    expect(run.err).toContain('library that does not emit these bytes');
   });
 });
 
@@ -400,8 +417,16 @@ describe('the arms a real bundle on a real disk cannot reach', () => {
   });
 
   it.each([
-    ['{"renderManifest":{}}', 'carries no render manifest'],
-    ['{"renderManifest":[{"logicalFilename":1}]}', 'not in the verified shape'],
+    ['{"schemaVersion":"frozen-report-core/v1","renderManifest":{}}', 'carries no render manifest'],
+    [
+      '{"schemaVersion":"frozen-report-core/v1","renderManifest":[{"logicalFilename":1}]}',
+      'not in the verified shape',
+    ],
+    // No version at all, and a blank one. Neither may fall back to a default: a generation
+    // this bundle does not claim, printed into a refusal a reader acts on, is worse than a
+    // refusal (ADR-0015).
+    ['{"renderManifest":[]}', 'carries no artifact schema version'],
+    ['{"schemaVersion":"","renderManifest":[]}', 'carries no artifact schema version'],
   ])('refuses a read-back whose manifest is %s', async (text, detail) => {
     const { directory } = await writeBundle();
     const verified = await verifyFrozenReportBundleAtPath(directory);

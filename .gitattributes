@@ -1,0 +1,13 @@
+# Recorded artifact bytes are output, not source. Git must not touch them.
+#
+# `npm run check:vectors` hashes every file under `vectors/` and compares the digest to the
+# one recorded on the day that vector was written (see `vectors/README.md` and ADR-0015).
+# `coverage-report.csv` is RFC 4180 CSV and carries CRLF line terminators, so under git's
+# ordinary text handling the committed blob loses them: measured on this repository with
+# `core.autocrlf=input`, the worktree file hashed to the recorded
+# c3c88ba5696c79ebed948de65a1d96d722522e35d488a7ef57f9cdf01b546881 while the staged blob held
+# zero carriage returns. A fresh clone would then fail the gate on a byte the library never
+# changed -- and on a machine configured the other way it would fail differently. `-text`
+# turns end-of-line conversion off for the corpus so a checkout is the bytes that were
+# recorded, everywhere.
+/vectors/** -text
