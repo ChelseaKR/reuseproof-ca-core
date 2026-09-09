@@ -11,7 +11,7 @@
  * mutation is asserted to have changed the bytes before the assertion under test runs. A
  * mutation that silently no-ops reads exactly like a checker that correctly found nothing wrong.
  */
-import { execFile } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { cp, mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -130,14 +130,8 @@ describe('the shipped corpus', () => {
       'the fixture no longer carries CRLF, so this proves nothing',
     ).toBe(true);
 
-    const attributes = await new Promise<string>((resolveText, rejectText) => {
-      execFile('git', ['check-attr', 'text', '--', path], (error, stdout) => {
-        if (error) {
-          rejectText(error);
-          return;
-        }
-        resolveText(stdout);
-      });
+    const attributes = execFileSync('git', ['check-attr', 'text', '--', path], {
+      encoding: 'utf8',
     });
 
     expect(attributes.trim()).toBe(`${path}: text: unset`);
