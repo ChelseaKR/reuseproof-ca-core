@@ -22,4 +22,15 @@ keywords:
   - regulatory-evidence
   - civic-tech
   - typescript
-date-released: 2026-07-19
+# `version` mirrors the in-development version in package.json, which is the single source
+# of truth; tests/release-claims.test.ts asserts the two agree. It was missing entirely,
+# so this file gave a release date with nothing to attach it to.
+#
+# `date-released` is deliberately absent. It carried 2026-07-19 while `git tag --list` was
+# empty here and on origin, no GitHub Release existed, and CHANGELOG.md said in terms that
+# no version had been tagged. Citation tooling prints this field as the date the software
+# was released, so anyone citing this project was handed a release date for a release that
+# never happened; the date was real, it was just the date of something else.
+# tests/release-claims.test.ts ties its presence to a tag naming the declared version, in
+# both directions, so it returns the moment a release is cut and cannot be left out of one.
+version: '0.1.0'

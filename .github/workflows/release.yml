@@ -25,7 +25,33 @@ concurrency:
 
 jobs:
   authorize:
-    uses: ChelseaKR/portfolio-standards/.github/workflows/release-authorize.yml@3692aa5270d673f91f8571b4fc0ce1c622bf67e5
+    # The callee lives in ChelseaKR/.github, which is public, and it has to. This
+    # repository is public, and a public repository cannot call a reusable workflow
+    # that lives in a private one. The previous pin named
+    # ChelseaKR/portfolio-standards, which is private, and GitHub refused the whole
+    # file at parse time rather than at run time -- so this workflow could not be
+    # dispatched at all, and never has been. Measured, not inferred:
+    #
+    #   gh workflow run release.yml -R ChelseaKR/reuseproof-ca-core --ref main -f tag=v0.0.0
+    #   HTTP 422: failed to parse workflow: error parsing called workflow
+    #   "ChelseaKR/portfolio-standards/.github/workflows/release-authorize.yml@3692aa52..."
+    #   : workflow was not found
+    #
+    # "was not found" is how GitHub reports the visibility rule, so the message
+    # points at the wrong thing: the commit exists, the file exists at it, and the
+    # standards repository's Actions access level is already `user`.
+    #
+    # The pinned commit is the public copy of that workflow. It is byte-identical
+    # to the private one at the SHA above except that it adds `timeout-minutes: 30`
+    # to the authorize job -- verified by diffing the two blobs, not assumed -- so
+    # the move is parity plus one tightening on the job that verifies the signed tag.
+    #
+    # The SHA is `ChelseaKR/.github`'s signed `v1.0.0` tag, so the pin names a
+    # released commit rather than a passing one. That matters beyond tidiness: a
+    # 40-hex SHA can resolve through GitHub's shared fork object store without being
+    # a commit the named repository ever published, so "the SHA exists" is not
+    # evidence of anything and "the SHA is one of its tags" is.
+    uses: ChelseaKR/.github/.github/workflows/release-authorize.yml@7be4c3e44e2acf20e8a98eeea4351c1e5d2789bc # v1.0.0
     permissions:
       contents: read
     with:
@@ -46,6 +72,11 @@ jobs:
         with:
           ref: ${{ needs.authorize.outputs.release-commit }}
           persist-credentials: false
+          # `make verify` runs tests/release-claims.test.ts, which reads
+          # `git tag --list`. This job exists because a tag was named, so a
+          # checkout that cannot see that tag would run the release checks
+          # against the wrong world entirely.
+          fetch-depth: 0
       - name: Set up Node.js
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
