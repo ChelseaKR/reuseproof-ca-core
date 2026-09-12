@@ -46,7 +46,7 @@ jobs:
           # to v3.97.0 and then v3.97.1 while this stayed at 3.96.0 and the sweep
           # went on running the older image. `npm run check:pins` now fails on that
           # gap instead of leaving it to be noticed.
-          version: '3.97.1'
+          version: '3.97.4'
           # `--fail` is not passed. The action's own command already includes it
           # and repeating a flag is a hard CLI error, so this scan exited 1 at
           # startup having read nothing: no chunk count, no findings, no coverage.
