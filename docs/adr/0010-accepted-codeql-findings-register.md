@@ -72,7 +72,7 @@ still an error and still fails the build. Nothing is wildcarded, and nothing is
 accepted by severity or by rule alone.
 
 An entry that matches nothing fails the gate whenever its category was
-analysed. An acceptance asserts that a specific finding exists and has been
+analyzed. An acceptance asserts that a specific finding exists and has been
 reasoned about; when that stops being true the assertion is stale, and a stale
 exemption in a security gate is what a blanket exemption grows from. A run
 carrying no analysis category matches no entry at all, so its findings are

@@ -50,7 +50,7 @@ for (let index = 0; index < rest.length; index += 1) {
     index += 1;
     continue;
   }
-  fail(`unrecognised argument ${JSON.stringify(rest[index])}`);
+  fail(`unrecognized argument ${JSON.stringify(rest[index])}`);
 }
 
 const inputText = await readFile(resolve(inputPath), 'utf8');

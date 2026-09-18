@@ -43,7 +43,7 @@ problem, and it behaved correctly.
 Rates, measured over all 135 recorded runs (117 of them repository-owned; the
 rest are `Dependabot Updates`, which is GitHub's own updater job, not a gate):
 
-- All-time repository-owned workflow runs: 78 success, 32 failure, 7 cancelled.
+- All-time repository-owned workflow runs: 78 success, 32 failure, 7 canceled.
 - Last 20 repository-owned runs: **10 success, 10 failure (50%)**.
 - Last 20 runs as `gh run list --limit 20` displays them (Dependabot Updates
   included): 12 success, 8 failure — the "8 of the last 20" figure.
@@ -161,13 +161,13 @@ exited 0 having scanned nothing would be a false green, and nothing here would
 notice — the job asserts the scanner's exit code and nothing about its
 `{"chunks": N}` line.
 
-Not built. The defence already in place is the right one: the `version:` input
+Not built. The defense already in place is the right one: the `version:` input
 pins what actually runs, added in #29 precisely because SHA-pinning the action
 does not pin the container it launches. Building a chunk-count assertion against
 a failure mode that has not occurred would add machinery on speculation.
 Recorded so a future reader knows it was considered.
 
-> **Superseded in part, 2026-09-06.** "The defence already in place" had already
+> **Superseded in part, 2026-09-06.** "The defense already in place" had already
 > stopped defending when this paragraph was written and nothing said so.
 > Dependabot moved the action SHA to v3.97.0 (#35, 2026-08-29) and then v3.97.1
 > (#47) while the `version:` input stayed at `'3.96.0'` — it cannot see the

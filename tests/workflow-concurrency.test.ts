@@ -111,7 +111,7 @@ describe('per-commit concurrency groups', () => {
 
 describe('cases that are deliberately not this defect', () => {
   it('ignores a JOB-level concurrency block keyed on the ref', async () => {
-    // Serialising a single job is legitimate. Only the column-zero block is the shared-slot bug,
+    // Serializing a single job is legitimate. Only the column-zero block is the shared-slot bug,
     // so an indented one must never be read in its place.
     await workflow(
       'ci.yml',

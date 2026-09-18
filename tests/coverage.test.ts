@@ -610,7 +610,7 @@ describe('typed routing and deterministic selection', () => {
 });
 
 /**
- * Interval-count behaviour of the observation-to-interval join.
+ * Interval-count behavior of the observation-to-interval join.
  *
  * `containingInterval` used to scan the whole interval list for every observation, re-parsing both
  * bounds of each interval it rejected. That made the join O(observations x intervals), and

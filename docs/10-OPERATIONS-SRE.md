@@ -131,7 +131,7 @@ Runbooks name incident commander, customer contacts, evidence to preserve, commu
 
 - versioning enabled;
 - cross-region replication target ≤15 minutes for accepted evidence objects;
-- frozen report/receipt acknowledgement only after durable copies exist in both configured regions;
+- frozen report/receipt acknowledgment only after durable copies exist in both configured regions;
 - lifecycle/retention protected from application admin;
 - quarterly sampled restore/hash verification;
 - pre-pilot and pre-release production-scale deletion/tamper recovery drill, including object/database relationship restoration and 100% hash verification for the selected report corpus;

@@ -176,7 +176,7 @@ describe('accepted findings', () => {
   };
 
   /** A SARIF run in `category` holding one error-severity result at `file` saying `text`. */
-  function analysed(category: string, results: { file: string; ruleId: string; text: string }[]) {
+  function analyzed(category: string, results: { file: string; ruleId: string; text: string }[]) {
     return {
       runs: [
         {
@@ -200,30 +200,30 @@ describe('accepted findings', () => {
   };
 
   it('lets the accepted finding through', async () => {
-    await writeSarif(dir, 'results.sarif', analysed(accepted.category, [matching]));
+    await writeSarif(dir, 'results.sarif', analyzed(accepted.category, [matching]));
     expect(await runGate([dir], [accepted])).toBe(0);
   });
 
   it('still fails on a different rule in the accepted file', async () => {
     const otherRule = { ...matching, ruleId: 'actions/another-query' };
-    await writeSarif(dir, 'results.sarif', analysed(accepted.category, [matching, otherRule]));
+    await writeSarif(dir, 'results.sarif', analyzed(accepted.category, [matching, otherRule]));
     expect(await runGate([dir], [accepted])).toBe(1);
   });
 
   it('still fails on the same rule in a different file', async () => {
     const elsewhere = { ...matching, file: '.github/workflows/other.yml' };
-    await writeSarif(dir, 'results.sarif', analysed(accepted.category, [matching, elsewhere]));
+    await writeSarif(dir, 'results.sarif', analyzed(accepted.category, [matching, elsewhere]));
     expect(await runGate([dir], [accepted])).toBe(1);
   });
 
   it('still fails on the same rule and file in a different analysis category', async () => {
-    await writeSarif(dir, 'results.sarif', analysed('/language:javascript-typescript', [matching]));
+    await writeSarif(dir, 'results.sarif', analyzed('/language:javascript-typescript', [matching]));
     expect(await runGate([dir], [accepted])).toBe(1);
   });
 
   it('still fails when the message no longer names the accepted untrusted input', async () => {
     const rephrased = { ...matching, text: 'poisoning via github.event.pull_request.head.sha.' };
-    await writeSarif(dir, 'results.sarif', analysed(accepted.category, [rephrased]));
+    await writeSarif(dir, 'results.sarif', analyzed(accepted.category, [rephrased]));
     expect(await runGate([dir], [accepted])).toBe(1);
   });
 
@@ -236,13 +236,13 @@ describe('accepted findings', () => {
     expect(await runGate([dir], [accepted])).toBe(1);
   });
 
-  it('fails when an acceptance matches nothing in an analysed category', async () => {
-    await writeSarif(dir, 'results.sarif', analysed(accepted.category, []));
+  it('fails when an acceptance matches nothing in an analyzed category', async () => {
+    await writeSarif(dir, 'results.sarif', analyzed(accepted.category, []));
     expect(await runGate([dir], [accepted])).toBe(1);
   });
 
-  it('does not enforce staleness for a category that was not analysed', async () => {
-    await writeSarif(dir, 'results.sarif', analysed('/language:javascript-typescript', []));
+  it('does not enforce staleness for a category that was not analyzed', async () => {
+    await writeSarif(dir, 'results.sarif', analyzed('/language:javascript-typescript', []));
     expect(await runGate([dir], [accepted])).toBe(0);
   });
 });

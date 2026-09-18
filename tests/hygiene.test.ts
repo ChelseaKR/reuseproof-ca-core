@@ -145,7 +145,7 @@ describe('bare markers fail', () => {
 });
 
 describe('markers naming an issue pass', () => {
-  it('accepts a parenthesised issue number', async () => {
+  it('accepts a parenthesized issue number', async () => {
     await write('a.ts', `// ${bareTodo}: rework the binder (#42)\n`);
     expect(await check([dir])).toBe(0);
   });

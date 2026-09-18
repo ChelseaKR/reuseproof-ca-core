@@ -299,7 +299,7 @@ describe('reconcileCsvMeasurementSources', () => {
 });
 
 /**
- * Row-count behaviour of the reconciler.
+ * Row-count behavior of the reconciler.
  *
  * `candidateFromOutcome` used to resolve its routed row, its observation and its numeric preimage
  * with `Array.prototype.find` over arrays whose length is the row count, and to rebuild the

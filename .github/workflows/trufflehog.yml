@@ -41,7 +41,7 @@ jobs:
           # The action's `version` input defaults to "latest" and it runs
           # `ghcr.io/trufflesecurity/trufflehog:${VERSION}`, so SHA-pinning the action
           # above does not pin what actually scans. That is how this gate changed
-          # behaviour with no commit here: upstream published 3.96.0 and the next
+          # behavior with no commit here: upstream published 3.96.0 and the next
           # run picked it up. Dependabot cannot see this input, so it moved the SHA
           # to v3.97.0 and then v3.97.1 while this stayed at 3.96.0 and the sweep
           # went on running the older image. `npm run check:pins` now fails on that

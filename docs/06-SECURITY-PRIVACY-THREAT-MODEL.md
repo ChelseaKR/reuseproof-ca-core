@@ -84,7 +84,7 @@ Security baseline: NIST CSF 2.0-informed program, CISA Cross-Sector Cybersecurit
 ### Contractual
 
 - Data source must be customer-pushed file/object or public vendor-cloud API.
-- Vendor attests credential contains no command, configuration, alarm acknowledgement, setpoint, firmware or administrative scope.
+- Vendor attests credential contains no command, configuration, alarm acknowledgment, setpoint, firmware or administrative scope.
 - Customer does not provide OT VPN, controller credentials, jump-host access or on-prem agent placement.
 - ReuseProof is not part of the operator's alarm or emergency-response plan.
 

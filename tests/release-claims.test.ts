@@ -456,7 +456,7 @@ describe('release claims: controls', () => {
     expect(UNRELEASED_SECTION.test('# c\n\n## [1.2.3] - 2026-01-02\n\n- a change\n')).toBe(false);
   });
 
-  it('recognises a version tag however it is written', () => {
+  it('recognizes a version tag however it is written', () => {
     expect(tagVersion('v0.1.0')).toBe('0.1.0');
     expect(tagVersion('0.1.0')).toBe('0.1.0');
     expect(tagVersion('v1.0.0-rc.1')).toBe('1.0.0-rc.1');

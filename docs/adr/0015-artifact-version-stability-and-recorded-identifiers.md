@@ -127,4 +127,4 @@ names the other possibility so a reader is not sent to the wrong conclusion.
   cannot re-render.
 - It does not decide the vector corpus's role in the published package. `vectors/` is a
   repository artifact today; whether an independent implementation is asked to pass it, and
-  under what licence and distribution, is left to #71's discussion and #54's schemas.
+  under what license and distribution, is left to #71's discussion and #54's schemas.
