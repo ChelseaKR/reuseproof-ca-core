@@ -93,7 +93,7 @@ const KEY_SEP = '\u0000';
  * untrusted input. A second instance of the same rule — another file, another input — is still an
  * error and still fails the build. Nothing here is wildcarded and nothing here is by severity.
  *
- * An entry that matches nothing FAILS the gate whenever its category was analysed. An acceptance
+ * An entry that matches nothing FAILS the gate whenever its category was analyzed. An acceptance
  * is a claim that a specific finding exists and has been reasoned about; once that stops being
  * true the claim is stale, and a stale exemption sitting in a security gate is exactly the thing
  * that quietly becomes a blanket one. Fixing the finding therefore also means deleting its entry.
@@ -158,7 +158,7 @@ function reportAccepted(accepted) {
 }
 
 /**
- * Accepted entries whose category was analysed but which matched no finding. Reported as errors:
+ * Accepted entries whose category was analyzed but which matched no finding. Reported as errors:
  * see the note on ACCEPTED_FINDINGS for why a stale acceptance must not be allowed to linger.
  */
 function staleAcceptances(register, matched, categoriesSeen) {

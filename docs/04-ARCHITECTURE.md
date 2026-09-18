@@ -176,7 +176,7 @@ Adapter packages contain no network endpoint beyond their allowlisted vendor-clo
 6. Human approval creates a separate verification envelope pinned to the exact frozen snapshot; the hashed artifacts contain no receipt/envelope ID or verification URL, so there is no self-hash cycle.
 7. External submission occurs outside V1; admin may record date, destination and proof in that envelope.
 
-The iteration-3 local foundation implements this ordering for the synthetic coverage projection: canonical content with immutable parameter/unit/time-zone series descriptors and report-safe coverage aggregates → HTML/CSV/JSON exact bytes → sorted render manifest → unsigned receipt core → deterministic frozen-draft core. A separate envelope pins one exact frozen snapshot before associating constrained human-review records, audit references, independently signed control-plane bundle hashes and proof of an action performed outside ReuseProof; same-receipt cross-snapshot records fail closed. It cannot mutate the receipt or claim destination receipt/acceptance. Output revalidation reconstructs exact outer and nested schemas, recomputes the retained full interval/outcome summaries from normalized inputs, derives the exported aggregate exactly, and checks fixed thresholds, aggregate membership, set hashes and render bytes. The projection never exposes interval rows, outcome rows, evaluation fingerprints or observation, nonoperation, lifecycle-event or lifecycle-evidence identifiers. Local bundle output uses fixed allowlisted filenames, exclusive file creation, file/directory sync and an atomic staged-directory rename. This is not the hosted report service, durable dual-region acknowledgement, complete quarterly/annual schema or authenticated workflow.
+The iteration-3 local foundation implements this ordering for the synthetic coverage projection: canonical content with immutable parameter/unit/time-zone series descriptors and report-safe coverage aggregates → HTML/CSV/JSON exact bytes → sorted render manifest → unsigned receipt core → deterministic frozen-draft core. A separate envelope pins one exact frozen snapshot before associating constrained human-review records, audit references, independently signed control-plane bundle hashes and proof of an action performed outside ReuseProof; same-receipt cross-snapshot records fail closed. It cannot mutate the receipt or claim destination receipt/acceptance. Output revalidation reconstructs exact outer and nested schemas, recomputes the retained full interval/outcome summaries from normalized inputs, derives the exported aggregate exactly, and checks fixed thresholds, aggregate membership, set hashes and render bytes. The projection never exposes interval rows, outcome rows, evaluation fingerprints or observation, nonoperation, lifecycle-event or lifecycle-evidence identifiers. Local bundle output uses fixed allowlisted filenames, exclusive file creation, file/directory sync and an atomic staged-directory rename. This is not the hosted report service, durable dual-region acknowledgment, complete quarterly/annual schema or authenticated workflow.
 
 ### 6.6 Public publication
 
@@ -256,7 +256,7 @@ All private endpoints are under /api/v1, require tenant context, return a correl
 - POST /publications/{id}/approvals
 - GET /public/v1/jurisdictions/{slug}/reports
 
-No endpoint accepts device commands, setpoints, alarm acknowledgements or control writes.
+No endpoint accepts device commands, setpoints, alarm acknowledgments or control writes.
 
 ## 8. Contract schemas
 
@@ -392,8 +392,8 @@ Target calculation: 50 systems × 20 series × 288 five-minute intervals/day × 
 - Separate quarantine, private evidence, generated report and public publication buckets/prefixes.
 - Server-side encryption with managed keys; per-environment keys.
 - Versioning enabled; lifecycle rules follow tenant schedule.
-- Accepted private evidence replicates cross-region within 15 minutes; upload acknowledgement is withheld until the primary version and durable replication-job record exist.
-- Frozen report and receipt acknowledgement requires durable copies in both configured regions, yielding RPO 0 for acknowledged release artifacts.
+- Accepted private evidence replicates cross-region within 15 minutes; upload acknowledgment is withheld until the primary version and durable replication-job record exist.
+- Frozen report and receipt acknowledgment requires durable copies in both configured regions, yielding RPO 0 for acknowledged release artifacts.
 - SHA-256 stored in database and receipt.
 - Optional Object Lock only after records counsel approves retention/hold implications.
 - Presigned access is short-lived, content-type/size limited and tenant/system scoped.

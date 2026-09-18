@@ -113,7 +113,7 @@ policy can only ever move a row from accepted to quarantined, or refine the reas
 was already quarantined for. It can never make a row acceptable that was not. This is
 asserted directly over a mixed fixture, per row and by fingerprint.
 
-**Behaviour without a policy is unchanged, and the artifact envelopes are not.** No
+**Behavior without a policy is unchanged, and the artifact envelopes are not.** No
 sentinel and no range means no `sensor_sentinel` and no `out_of_plausible_range` outcome
 can be produced, and every existing decision path is untouched. The *bytes* of four
 artifacts do move, because they now state `plausibilityPolicyHash: null`:
@@ -124,8 +124,8 @@ exists, so ungoverned runs stayed byte-identical — was rejected under rule 6: 
 byte-stability by making an absence unreadable, which is the defect this ADR exists to
 close.
 
-**The jurisdiction keeps the judgement.** The library applies the range it is handed and
-records which policy version did so. The synthetic demo fixture carries a labelled
+**The jurisdiction keeps the judgment.** The library applies the range it is handed and
+records which policy version did so. The synthetic demo fixture carries a labeled
 synthetic policy (`flow-sentinels-and-bounds`) so the mechanism is exercised by
 `npm run demo:check` and `npm run demo:case`; its bounds are synthetic and approve
 nothing.

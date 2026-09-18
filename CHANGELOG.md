@@ -61,7 +61,7 @@ No version has been tagged yet.
   numbered list stopped at workflow action pins while `make verify` had also
   been running `npm run check:concurrency` since #52. Found while adding the
   eleventh step; the omission was documentation drift only, and no gate
-  behaviour changed.
+  behavior changed.
 
 ### Fixed
 
@@ -242,7 +242,7 @@ No version has been tagged yet.
   satisfy its own render manifest. It could not prove the bundle is what those
   inputs produce, because the inputs were nowhere -- a gap the README already
   named, when it said production restore and audit "still require durable
-  retention of those authoritative objects" and then modelled nothing that did.
+  retention of those authoritative objects" and then modeled nothing that did.
 
   An **evidence case** is that input on disk. `evidence-case.json` is the manifest,
   and its own bytes yield the case ID the way `report-freeze.json`'s bytes yield

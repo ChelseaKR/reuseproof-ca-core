@@ -285,7 +285,7 @@ The product must technically and contractually enforce its evidence-only, read-o
 
 Acceptance criteria:
 
-- **AC-17a:** No production code contains device-control, setpoint, alarm-acknowledgement or SCADA write interfaces.
+- **AC-17a:** No production code contains device-control, setpoint, alarm-acknowledgment or SCADA write interfaces.
 - **AC-17b:** UI and documentation tell operators to use approved onsite alarms and emergency procedures; ingestion freshness is not presented as real-time safety status.
 - **AC-17c:** A static and dynamic invariant test blocks release if a write-capable vendor scope or endpoint appears.
 
@@ -323,7 +323,7 @@ Acceptance criteria:
 | NFR-08 | Maintainability | Modular boundaries, adapter SDK, schema migrations and typed contracts; ≥90% branch coverage on critical domain logic and ≥80% across the overall domain, reported separately and enforced in CI |
 | NFR-09 | Retention/portability | Tenant-configured approved schedule; legal hold/export support; full exit export within 10 business days |
 | NFR-10 | Scale envelope | Validate 50 systems, 20 five-minute series each, approximately 105.1 million measurements/year, at 2x burst; revisit storage if exceeded |
-| NFR-11 | Recovery | Database RPO ≤15 minutes/RTO ≤8 hours; accepted evidence objects RPO ≤15 minutes/RTO ≤8 hours; frozen report/receipt objects RPO 0 after acknowledgement; cross-region versioning/replication and recovery drills verify hashes |
+| NFR-11 | Recovery | Database RPO ≤15 minutes/RTO ≤8 hours; accepted evidence objects RPO ≤15 minutes/RTO ≤8 hours; frozen report/receipt objects RPO 0 after acknowledgment; cross-region versioning/replication and recovery drills verify hashes |
 | NFR-12 | Critical-infrastructure protection | No direct OT access; endpoint/credential/topology secrets excluded from logs, analytics, public view and support tools |
 
 ## 9. Metrics

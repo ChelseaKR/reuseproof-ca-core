@@ -22,7 +22,7 @@ fixes land on `main` and, once one exists, the latest tagged release.
 
 Use GitHub private vulnerability reporting from the repository's *Security*
 tab. Do not open a public issue for a suspected vulnerability. Expect an
-acknowledgement within a few days; this is a solo project, so please be patient
+acknowledgment within a few days; this is a solo project, so please be patient
 and do not disclose publicly until a fix is available.
 
 ### Redaction-safe reporting (please read)

@@ -74,7 +74,7 @@ its check, and a green gate must state what it covered.** Concretely:
    metric *below* the global floor (a key that reads as a safety rule while
    actually exempting those files); that every keyed threshold states every
    metric; and that the guard understands every key shape it is given — an
-   unrecognised pattern fails rather than being skipped, because a guard that
+   unrecognized pattern fails rather than being skipped, because a guard that
    silently stops checking is the defect this ADR is about.
 
 3. `make verify` gains an eighth step, `npm run demo:check`, which runs the
@@ -84,7 +84,7 @@ its check, and a green gate must state what it covered.** Concretely:
    throwing on the fixture this repository ships.
 
 The merge gate remains a single target that CI invokes literally, so local and
-CI behaviour still cannot drift.
+CI behavior still cannot drift.
 
 ## Consequences
 

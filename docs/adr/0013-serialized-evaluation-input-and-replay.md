@@ -20,7 +20,7 @@ The consequence is stated in the README already: the receipt and freeze wrappers
 governing-contract preimages, normalized evaluation preimages and full coverage summaries
 in memory while emitted artifacts contain only their hashes, so "production restore and
 audit therefore still require durable retention of those authoritative objects." The
-library named that requirement and modelled nothing that satisfied it.
+library named that requirement and modeled nothing that satisfied it.
 
 So `bin/reuseproof-verify.js` proves exactly what it says it proves: this directory's
 bytes still satisfy its own render manifest. It cannot prove that this bundle is what

@@ -165,7 +165,7 @@ export async function checkWorkflowPins(directory = DEFAULT_WORKFLOW_DIR) {
     console.error(
       `No \`uses:\` references found across ${files.length} workflow document(s) in ` +
         `${JSON.stringify(directory)}. This is a gate failure, not a clean result: the scanner ` +
-        `read the files and recognised nothing in them.`,
+        `read the files and recognized nothing in them.`,
     );
     return 1;
   }

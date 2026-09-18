@@ -52,7 +52,7 @@ Costs and limits:
 - exact bytes, including whitespace/CSS, are part of the receipt and require intentional versioning when changed;
 - the reference HTML is deliberately plain and English-only;
 - a unique container path is runtime-specific even though every file byte is deterministic;
-- local fsync/rename is not dual-region durable acknowledgement or an adversarial shared-directory security boundary; and
+- local fsync/rename is not dual-region durable acknowledgment or an adversarial shared-directory security boundary; and
 - on-disk verification proves byte integrity, not authenticity. Because the bundle is deliberately unsigned there is nothing to forge: anyone holding this tool can regenerate a wholly self-consistent bundle, so the check detects alteration of a bundle, never forgery of one. It is sound only against an independently recorded snapshot ID, which the verifier returns for that purpose, and one bundle cannot prove the predecessor a superseding snapshot names.
 
 ## Alternatives considered

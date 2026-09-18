@@ -46,7 +46,7 @@ Technology:
 ## Binding invariants
 
 1. No direct connection to building OT/SCADA/PLC/BMS.
-2. No device/control write, setpoint, alarm acknowledgement, diversion or treatment command.
+2. No device/control write, setpoint, alarm acknowledgment, diversion or treatment command.
 3. No safety-critical real-time monitoring claim or operator-response dependency.
 4. No automated compliance, safety, violation, permit or enforcement determination.
 5. No treatment engineering, commissioning, validation or laboratory function.

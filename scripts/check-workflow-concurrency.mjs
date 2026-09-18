@@ -10,7 +10,7 @@
  *
  * Either way the commit lands with no verdict at all, and it is reported as `cancelled` or is
  * simply absent -- never as red -- so nothing surfaces it. Measured elsewhere in this portfolio on
- * 2026-09-06: one repository's `standards` workflow was cancelled on three consecutive pushes to
+ * 2026-09-06: one repository's `standards` workflow was canceled on three consecutive pushes to
  * `main`, leaving three commits with no gate result and nothing anywhere saying so.
  *
  * The rule: a workflow that runs on a push to a BRANCH and declares a workflow-level concurrency
@@ -20,7 +20,7 @@
  *
  * Two things are deliberately not this defect:
  *
- *   1. A JOB-level `concurrency:` block. Serialising one job -- a Pages deploy, say -- is correct,
+ *   1. A JOB-level `concurrency:` block. Serializing one job -- a Pages deploy, say -- is correct,
  *      so the block parser anchors at column zero and can never return an indented block in place
  *      of the workflow-level one.
  *
@@ -50,7 +50,7 @@ const workflowExtensions = new Set(['.yml', '.yaml']);
  * Workflows whose runs are meant to converge on one slot, with the reason each is exempt.
  *
  * These describe a property of the REPOSITORY rather than of one commit, so the newest answer is
- * the only one worth having and collapsing onto a single slot is the intended behaviour. An
+ * the only one worth having and collapsing onto a single slot is the intended behavior. An
  * exemption is also how a real defect gets waved through later, so the table is asserted exactly
  * equal in the suite: widening it is a visible diff carrying a reason, not a silent addition.
  */
