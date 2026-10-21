@@ -84,8 +84,8 @@ describe("the repository's own workflows", () => {
       reference.startsWith('trufflesecurity/trufflehog@'),
     );
     expect(scanner).toBeDefined();
-    expect(scanner?.version).toBe('v3.97.4');
-    expect(scanner?.body).toMatch(/^\s*version: '3\.97\.4'$/m);
+    expect(scanner?.version).toBe('v3.99.2');
+    expect(scanner?.body).toMatch(/^\s*version: '3\.99\.2'$/m);
   });
 });
 
